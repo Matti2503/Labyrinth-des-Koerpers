@@ -1,5 +1,5 @@
 /* Leitungsbahnen — Prototyp */
-const BUILD='4';
+const BUILD='5';
 const D=window.GAMEDATA;
 const A={},R={};
 for(const e of D.edges){
@@ -44,6 +44,11 @@ function roughPath(w,h,seed){
   const seg=(x1,y1,x2,y2)=>`M${(x1+o()).toFixed(1)},${(y1+o()).toFixed(1)} Q${((x1+x2)/2+o()).toFixed(1)},${((y1+y2)/2+o()).toFixed(1)} ${(x2+o()).toFixed(1)},${(y2+o()).toFixed(1)}`;
   return[seg(i,i,w-i,i),seg(w-i,i,w-i,h-i),seg(w-i,h-i,i,h-i),seg(i,h-i,i,i),
         seg(i+1,i+2,w-i-1,i+1),seg(w-i-2,i+1,w-i-1,h-i-1),seg(w-i,h-i-1,i+1,h-i-2),seg(i+2,h-i,i+1,i+1)].join(' ');
+}
+function roughLine(x1,y1,x2,y2,seed,dop=true){
+  const r=rnd(hash(seed)),o=()=>(r()-.5)*2.2;
+  const z=(a,b,c,d)=>`M${(a+o()).toFixed(1)},${(b+o()).toFixed(1)} Q${((a+c)/2+o()).toFixed(1)},${((b+d)/2+o()).toFixed(1)} ${(c+o()).toFixed(1)},${(d+o()).toFixed(1)}`;
+  return dop? z(x1,y1,x2,y2)+' '+z(x1,y1,x2,y2) : z(x1,y1,x2,y2);
 }
 function frames(){
   document.querySelectorAll('[data-rough]').forEach(el=>{
@@ -247,9 +252,9 @@ function kopf(){
     <div class="balken"><i style="width:${p}%"></i></div>
     <div class="klein">Bringe den Erythrozyten von <span class="lat">${esc(nm(G.start))}</span> nach <span class="lat">${esc(nm(G.ziel))}</span></div>
     ${G.items.length?`<div class="chips">${G.items.slice(0,4).map(i=>`<span class="chip">${esc(i.n)}</span>`).join('')}${G.items.length>4?`<span class="chip">+${G.items.length-4}</span>`:''}</div>`:''}
-    </div>${heldSVG()}</div>`,'kopf'+G.level+'-'+G.items.length);
+    </div>${S==='nav'?'':heldSVG()}</div>`,'kopf'+G.level+'-'+G.items.length+'-'+S);
 }
-function heldSVG(){
+function figurPfade(breite){
   const t=n=>G.items.filter(i=>i.g.includes(n)).length;
   const L=G.level, p=[];
   p.push('<circle cx="30" cy="16" r="8"/><path d="M30 24 V50 M30 32 L18 40 M30 32 L42 40 M30 50 L21 66 M30 50 L39 66"/>');
@@ -260,9 +265,13 @@ function heldSVG(){
   if(t('medimeister')>0) p.push('<path d="M44 60 h9 v9 h-9Z M53 62 h4 v4 h-4"/>'); // Krug
   if(L>=5) p.push('<path d="M22 9 q8 -7 16 0"/>');                              // Helmbuegel
   if(L>=8) p.push('<path d="M14 70 q16 5 32 0"/>');                             // Standlinie
-  return `<svg viewBox="0 0 62 76" width="50" height="62" aria-label="Deine Figur, Level ${L}"
-    style="display:block;flex:0 0 auto"><g fill="none" stroke="var(--tinte)"
-    stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${p.join('')}</g></svg>`;
+  const sk=breite/62;
+  return `<g transform="translate(3,0) scale(${sk.toFixed(3)})" fill="none" stroke="var(--tinte)"
+    stroke-width="${(1.9/sk).toFixed(2)}" stroke-linecap="round" stroke-linejoin="round">${p.join('')}</g>`;
+}
+function heldSVG(){
+  return `<svg viewBox="0 0 62 76" width="50" height="62" aria-label="Deine Figur, Level ${G.level}"
+    style="display:block;flex:0 0 auto">${figurPfade(56)}</svg>`;
 }
 function monsterSVG(){
   return `<svg viewBox="0 0 120 110" width="112" height="102" aria-hidden="true" style="display:block;margin:0 auto">
@@ -273,6 +282,11 @@ function monsterSVG(){
 }
 function render(){
   let h='';
+  if(G){                                   // Zustaende gegen Inkonsistenz absichern
+    if(S==='fight'&&!G.mon)S='nav';
+    if(S==='drop'&&!G.drop)S='nav';
+    if(S==='loot'&&!G.loot)S='nav';
+  } else if(S!=='start'&&S!=='shop') S='start';
   if(S==='start'){
     h=`<h1>Das Labyrinth<br>des Körpers</h1>
        <p class="klein">Ein Roguelite über Leitungsbahnen</p>
@@ -293,8 +307,11 @@ function render(){
       ${d!=null?`<p class="klein">Noch ${d} ${d===1?'Abzweigung':'Abzweigungen'} bis zum Ziel</p>`:`<p class="klein falsch">Von hier führt kein Weg zum Ziel.</p>`}`,'ort'+G.node)
       +(G.msg?box(`<p>${G.msg}</p>`,'msg','duenn'):'')
       +`<p class="klein abstand">Wohin fließt das Blut?</p>`
-      +aus.map((e,i)=>btn(`<span class="lat">${esc(nm(e.t))}</span><span class="klein"> — ${esc(rel(e))}</span>`
-          +(G.zeige===i?` <span class="klein richtig">· hierhin</span>`:''),'go',String(i))).join('')
+      +`<div id="gang" class="gang"><svg id="gangsvg" class="gangsvg" width="${GANG.w}" aria-hidden="true"></svg>`
+      +aus.map((e,i)=>`<div class="box duenn opt" data-rough="go${i}"><button data-act="go" data-arg="${i}">`
+          +`<span class="lat">${esc(nm(e.t))}</span><span class="klein"> — ${esc(rel(e))}</span>`
+          +(G.zeige===i?` <span class="klein richtig">· hierhin</span>`:'')+`</button></div>`).join('')
+      +`</div>`
       +G.items.map((it,k)=>it._ch>0&&G.zeige==null&&d>0
           ? btn(`${esc(it.n)} benutzen <span class="klein">· ${it._ch} ${it._ch===1?'Ladung':'Ladungen'}</span>`,'use',String(k)) : '').join('')
       +btn(`Inventar <span class="klein">· ${G.items.length} ${G.items.length===1?'Item':'Items'}</span>`,'inv');
@@ -360,6 +377,7 @@ function render(){
   }
   app.innerHTML=`<div class="fade">${h}</div>`;
   frames();
+  if(S==='nav')zeichneGang();
   window.scrollTo(0,0);
 }
 function setUebersicht(){
@@ -370,6 +388,53 @@ function setUebersicht(){
   return zeilen?box(`<p class="klein">Sammlungen</p>${zeilen}`,'sets','duenn'):'';
 }
 function hatWette(){return G.items.some(i=>i.e.some(e=>e.op==='offer_gamble'));}
+const GANG={w:66,wand:8,rechts:52, halb:15};
+function zeichneGang(){
+  const g=document.getElementById('gang'); if(!g)return;
+  const opts=[...g.querySelectorAll('.opt')];
+  if(!opts.length)return;
+  const H=g.offsetHeight, {w,wand,rechts,halb}=GANG;
+  const ys=opts.map(o=>{
+    const c=o.offsetTop+o.offsetHeight/2;
+    return Math.max(halb+4, Math.min(H-halb-4, c));
+  });
+  let d='', y=4;
+  d+=roughLine(wand,4,wand,H-4,'wandl');                       // linke Wand, durchgehend
+  ys.forEach((cy,i)=>{                                          // rechte Wand mit Oeffnungen
+    if(cy-halb>y) d+=' '+roughLine(rechts,y,rechts,cy-halb,'wr'+i);
+    d+=' '+roughLine(rechts,cy-halb,w,cy-halb,'ao'+i);          // Abzweig oben
+    d+=' '+roughLine(rechts,cy+halb,w,cy+halb,'au'+i);          // Abzweig unten
+    y=cy+halb;
+  });
+  if(y<H-4) d+=' '+roughLine(rechts,y,rechts,H-4,'wrend');
+  d+=' '+roughLine(wand,H-4,rechts,H-4,'boden');                // Gangende
+  const svg=document.getElementById('gangsvg');
+  svg.setAttribute('viewBox',`0 0 ${w} ${H}`);
+  svg.setAttribute('height',H);
+  svg.innerHTML=`<path class="wand" d="${d}"/>`
+    +`<g id="held" style="transform:translate(0px,${(ys[0]-30).toFixed(0)}px)">${figurPfade(20)}</g>`;
+  g.dataset.ys=JSON.stringify(ys);
+}
+function laufe(i){
+  const g=document.getElementById('gang'), h=document.getElementById('held');
+  if(!g||!h||!g.dataset.ys) return Promise.resolve();
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches) return Promise.resolve();
+  const ys=JSON.parse(g.dataset.ys), ziel=ys[i];
+  if(ziel==null) return Promise.resolve();
+  const jetzt=parseFloat((h.style.transform.match(/translate\(([-\d.]+)px,\s*([-\d.]+)px\)/)||[0,0,0])[2])||0;
+  const strecke=Math.abs(ziel-30-jetzt);
+  const t1=Math.min(520,Math.max(180,strecke*3.2));
+  return new Promise(fertig=>{
+    h.style.transition=`transform ${t1}ms cubic-bezier(.4,0,.5,1)`;
+    h.style.transform=`translate(0px,${(ziel-30).toFixed(0)}px)`;
+    setTimeout(()=>{
+      h.style.transition='transform 300ms ease-in, opacity 300ms ease-in';
+      h.style.transform=`translate(52px,${(ziel-30).toFixed(0)}px)`;
+      h.style.opacity='0';
+      setTimeout(fertig,300);
+    },t1+40);
+  });
+}
 function rel(e){
   const m={branch_of:'Ast',continues_as:'Fortsetzung',drains_into:'mündet in',
            anastomosis:'Anastomose',portal:'Pfortaderstrecke',portokaval:'portokaval'};
@@ -386,7 +451,7 @@ app.addEventListener('click',async ev=>{
   else if(a==='reset'){meta={coins:0,perks:{},srs:{},enc:0,runs:0,best:0};await saveMeta();S='start';}
   else if(a==='buy'){const p=PERKS.find(x=>x.id===arg);
     if(p&&meta.coins>=p.c&&perk(p.id)<p.max){meta.coins-=p.c;meta.perks[p.id]=perk(p.id)+1;await saveMeta();}}
-  else if(a==='go'){gehe(+arg);}
+  else if(a==='go'){ await laufe(+arg); gehe(+arg); }
   else if(a==='ans'){antworte(arg);}
   else if(a==='weiter'){weiter();}
   else if(a==='take'){equip(G.loot[+arg]);naechstesLevel();}

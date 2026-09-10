@@ -57,3 +57,11 @@ hr{border:0;border-top:1.5px dashed rgba(43,74,139,.3);margin:16px 0}
   .fade{animation:f .22s ease-out}
   @keyframes f{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 }
+
+/* Gang: die aktuelle Arterie als Korridor, aus dem die Abzweigungen abgehen */
+.gang{position:relative;padding-left:66px}
+.gangsvg{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
+.gangsvg .wand{fill:none;stroke:var(--tinte);stroke-width:1.7;stroke-linecap:round;opacity:.8}
+.gang .opt{margin:12px 0}
+#held{transform-box:view-box;will-change:transform}
+@media (prefers-reduced-motion:reduce){#held{transition:none !important}}
