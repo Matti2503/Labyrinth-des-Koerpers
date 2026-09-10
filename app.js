@@ -1,4 +1,5 @@
 /* Leitungsbahnen — Prototyp */
+const BUILD='4';
 const D=window.GAMEDATA;
 const A={},R={};
 for(const e of D.edges){
@@ -7,8 +8,33 @@ for(const e of D.edges){
   (R[e.t]??=[]).push({...e});
   if(e.b){(A[e.t]??=[]).push({...e,f:e.t,t:e.f});(R[e.f]??=[]).push({...e,f:e.t,t:e.f});}
 }
+/* Abgaenge werden proximal -> distal bzw. kranial -> kaudal sortiert.
+   Rangfolge: kuratierte Tabelle, dann Wirbelhoehe aus der Ursprungsangabe,
+   dann Kantentyp (Ast vor Fortsetzung vor Anastomose), Kapillarbett zuletzt. */
+const ORD=D.order||{};
+function wirbel(txt){
+  if(!txt)return null;
+  const m=/(HWK|BWK|LWK|SWK)\s*(\d+)/.exec(txt);
+  if(m)return {HWK:0,BWK:7,LWK:19,SWK:24}[m[1]]+ (+m[2]);
+  const i=/ICR\s*(\d+)/.exec(txt);
+  if(i)return 7 + (+i[1]);
+  return null;
+}
+function sortiere(quelle,liste){
+  const tab=ORD[quelle];
+  const key=(e,i)=>{
+    const kap=D.nodes[e.t]?.t==='kapillarbett'?1:0;
+    const kl=kap?3:(e.r==='branch_of'?0:e.r==='continues_as'?1:2);
+    let zweit;
+    if(tab){const k=tab.indexOf(e.t);zweit=k>=0?k:900+i;}
+    else {const w=wirbel(e.o);zweit=w!=null?w:900+i;}
+    return kl*10000+zweit*10+ (i%10);
+  };
+  return liste.map((e,i)=>[key(e,i),i,e]).sort((a,b)=>a[0]-b[0]||a[1]-b[1]).map(x=>x[2]);
+}
 const nm=id=>D.nodes[id]?.n||id;
 const de=id=>D.nodes[id]?.d||'';
+for(const k in A) A[k]=sortiere(k,A[k]);
 
 /* ---------- Rough-Rahmen, deterministisch geseedet ---------- */
 const hash=s=>{let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;};
@@ -215,10 +241,13 @@ const btn=(label,act,arg='',dis='')=>
 
 function kopf(){
   const p=Math.max(0,G.hp)/G.hpMax*100;
-  return box(heldSVG()+`<div class="zeile" style="padding-right:58px"><span>Level ${G.level}/10</span><span class="mono">${Math.max(0,G.hp)} / ${G.hpMax} HP</span></div>
+  return box(`<div style="display:flex;gap:12px;align-items:flex-start">
+    <div style="flex:1 1 auto;min-width:0">
+    <div class="zeile"><span>Level ${G.level}/10</span><span class="mono">${Math.max(0,G.hp)} / ${G.hpMax} HP</span></div>
     <div class="balken"><i style="width:${p}%"></i></div>
     <div class="klein">Bringe den Erythrozyten von <span class="lat">${esc(nm(G.start))}</span> nach <span class="lat">${esc(nm(G.ziel))}</span></div>
-    ${G.items.length?`<div class="chips">${G.items.slice(0,4).map(i=>`<span class="chip">${esc(i.n)}</span>`).join('')}${G.items.length>4?`<span class="chip">+${G.items.length-4}</span>`:''}</div>`:''}`,'kopf'+G.level+'-'+G.items.length);
+    ${G.items.length?`<div class="chips">${G.items.slice(0,4).map(i=>`<span class="chip">${esc(i.n)}</span>`).join('')}${G.items.length>4?`<span class="chip">+${G.items.length-4}</span>`:''}</div>`:''}
+    </div>${heldSVG()}</div>`,'kopf'+G.level+'-'+G.items.length);
 }
 function heldSVG(){
   const t=n=>G.items.filter(i=>i.g.includes(n)).length;
@@ -231,8 +260,8 @@ function heldSVG(){
   if(t('medimeister')>0) p.push('<path d="M44 60 h9 v9 h-9Z M53 62 h4 v4 h-4"/>'); // Krug
   if(L>=5) p.push('<path d="M22 9 q8 -7 16 0"/>');                              // Helmbuegel
   if(L>=8) p.push('<path d="M14 70 q16 5 32 0"/>');                             // Standlinie
-  return `<svg viewBox="0 0 62 76" width="52" height="64" aria-label="Deine Figur, Level ${L}"
-    style="position:absolute;right:10px;top:6px"><g fill="none" stroke="var(--tinte)"
+  return `<svg viewBox="0 0 62 76" width="50" height="62" aria-label="Deine Figur, Level ${L}"
+    style="display:block;flex:0 0 auto"><g fill="none" stroke="var(--tinte)"
     stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${p.join('')}</g></svg>`;
 }
 function monsterSVG(){
@@ -253,7 +282,7 @@ function render(){
        ${meta.runs?box(`<div class="zeile"><span class="klein">Runs</span><span class="mono">${meta.runs}</span></div>
          <div class="zeile"><span class="klein">Bestes Level</span><span class="mono">${meta.best}</span></div>
          <div class="zeile"><span class="klein">Fragen im Umlauf</span><span class="mono">${Object.keys(meta.srs).length}/${D.questions.length}</span></div>`,'stat','duenn'):''}
-       <p class="hinweis">${Object.keys(D.nodes).length} Gefäße · ${D.questions.length} Fragen · ${D.items.length} Items. Eigene Fragen, keine IMPP-Originale. Nicht von einer Fachperson gegengelesen — zum Üben, nicht als Beleg.</p>
+       <p class="hinweis">Fassung ${BUILD} · ${Object.keys(D.nodes).length} Gefäße · ${D.questions.length} Fragen · ${D.items.length} Items. Eigene Fragen, keine IMPP-Originale. Nicht von einer Fachperson gegengelesen — zum Üben, nicht als Beleg.</p>
        ${navigator.standalone===false?`<p class="hinweis">Zum Installieren: Teilen-Symbol antippen, dann „Zum Home-Bildschirm".</p>`:''}`;
   }
   else if(S==='nav'){

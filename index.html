@@ -19,7 +19,18 @@
 <script src="app.js"></script>
 <script>
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{}));
+  window.addEventListener('load', async () => {
+    try{
+      const reg = await navigator.serviceWorker.register('sw.js');
+      reg.addEventListener('updatefound', () => {
+        const neu = reg.installing;
+        neu && neu.addEventListener('statechange', () => {
+          if (neu.state === 'installed' && navigator.serviceWorker.controller) location.reload();
+        });
+      });
+      reg.update();
+    }catch(e){}
+  });
 }
 </script>
 </body>
