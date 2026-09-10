@@ -1,4 +1,4 @@
-const CACHE='leitungsbahnen-v1';
+const CACHE='leitungsbahnen-v2';
 const FILES=['./','./index.html','./style.css','./app.js','./gamedata.js',
              './manifest.webmanifest','./icon-192.png','./icon-512.png'];
 self.addEventListener('install',e=>{

@@ -82,6 +82,9 @@ function quest(){
 const tagN=t=>G.items.filter(i=>i.g.includes(t)).length;
 const luck=c=>Math.random()<(c+G.luck);
 function equip(it){
+  it={...it,e:it.e.map(e=>({...e}))};
+  const lad=it.e.find(e=>e.op==='reveal_path');
+  if(lad)it._ch=lad.charges;
   G.items.push(it);
   for(const e of it.e){
     if(e.hook!=='onRunStart')continue;
@@ -119,6 +122,7 @@ function schaden(){
   }
   if(tagN('chirurgie')>=3)mult*=1.10;
   if(tagN('groessenwahn')>=3)mult*=1.15;
+  if(G.wette)mult*=2;
   let d=Math.max(1,Math.round(flat*mult));
   const cc=G.crit+(tagN('chirurgie')>=5?.15:0);
   const krit=luck(cc);
@@ -136,6 +140,7 @@ function verlust(){
     else if(e.op==='damage_taken_mult')mult*=e.value;
   }
   if(tagN('notaufnahme')>=5)mult*=.85;
+  if(G.wette)mult*=2;
   return Math.max(0,Math.round(l*mult));
 }
 function versteckt(q){
@@ -187,7 +192,7 @@ function naechsteFrage(){
   const n=versteckt(q),weg=[];
   const pool=[...falsch];
   for(let i=0;i<n&&pool.length>1;i++)weg.push(pool.splice((Math.random()*pool.length)|0,1)[0]);
-  G.weg=weg;G.antwort=null;
+  G.weg=weg;G.antwort=null;G.wette=false;
 }
 function loot(){
   const n=4+(perk('opt')?1:0)+(G.items.some(i=>i.e.some(e=>e.op==='item_choices_add'))?1:0);
@@ -210,10 +215,25 @@ const btn=(label,act,arg='',dis='')=>
 
 function kopf(){
   const p=Math.max(0,G.hp)/G.hpMax*100;
-  return box(`<div class="zeile"><span>Level ${G.level}/10</span><span class="mono">${Math.max(0,G.hp)} / ${G.hpMax} HP</span></div>
+  return box(heldSVG()+`<div class="zeile" style="padding-right:58px"><span>Level ${G.level}/10</span><span class="mono">${Math.max(0,G.hp)} / ${G.hpMax} HP</span></div>
     <div class="balken"><i style="width:${p}%"></i></div>
     <div class="klein">Bringe den Erythrozyten von <span class="lat">${esc(nm(G.start))}</span> nach <span class="lat">${esc(nm(G.ziel))}</span></div>
-    ${G.items.length?`<div class="chips">${G.items.map(i=>`<span class="chip">${esc(i.n)}</span>`).join('')}</div>`:''}`,'kopf'+G.level);
+    ${G.items.length?`<div class="chips">${G.items.slice(0,4).map(i=>`<span class="chip">${esc(i.n)}</span>`).join('')}${G.items.length>4?`<span class="chip">+${G.items.length-4}</span>`:''}</div>`:''}`,'kopf'+G.level+'-'+G.items.length);
+}
+function heldSVG(){
+  const t=n=>G.items.filter(i=>i.g.includes(n)).length;
+  const L=G.level, p=[];
+  p.push('<circle cx="30" cy="16" r="8"/><path d="M30 24 V50 M30 32 L18 40 M30 32 L42 40 M30 50 L21 66 M30 50 L39 66"/>');
+  if(t('chirurgie')>0) p.push('<path d="M42 40 L54 26 M50 26 h8"/>');           // Skalpell
+  if(t('notaufnahme')>0) p.push('<path d="M18 40 l-9 4 v10 l9 4 9-4 V44Z"/>');  // Schild
+  if(t('groessenwahn')>0) p.push('<path d="M22 30 q-12 -6 -14 4 q8 -1 14 3 M38 30 q12 -6 14 4 q-8 -1 -14 3"/>'); // Fluegel
+  if(t('unialltag')>0) p.push('<path d="M22 8 h16 M24 8 v-4 h12 v4"/>');        // Kaeppi
+  if(t('medimeister')>0) p.push('<path d="M44 60 h9 v9 h-9Z M53 62 h4 v4 h-4"/>'); // Krug
+  if(L>=5) p.push('<path d="M22 9 q8 -7 16 0"/>');                              // Helmbuegel
+  if(L>=8) p.push('<path d="M14 70 q16 5 32 0"/>');                             // Standlinie
+  return `<svg viewBox="0 0 62 76" width="52" height="64" aria-label="Deine Figur, Level ${L}"
+    style="position:absolute;right:10px;top:6px"><g fill="none" stroke="var(--tinte)"
+    stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${p.join('')}</g></svg>`;
 }
 function monsterSVG(){
   return `<svg viewBox="0 0 120 110" width="112" height="102" aria-hidden="true" style="display:block;margin:0 auto">
@@ -244,7 +264,11 @@ function render(){
       ${d!=null?`<p class="klein">Noch ${d} ${d===1?'Abzweigung':'Abzweigungen'} bis zum Ziel</p>`:`<p class="klein falsch">Von hier führt kein Weg zum Ziel.</p>`}`,'ort'+G.node)
       +(G.msg?box(`<p>${G.msg}</p>`,'msg','duenn'):'')
       +`<p class="klein abstand">Wohin fließt das Blut?</p>`
-      +aus.map((e,i)=>btn(`<span class="lat">${esc(nm(e.t))}</span><span class="klein"> — ${esc(rel(e))}</span>`,'go',String(i))).join('');
+      +aus.map((e,i)=>btn(`<span class="lat">${esc(nm(e.t))}</span><span class="klein"> — ${esc(rel(e))}</span>`
+          +(G.zeige===i?` <span class="klein richtig">· hierhin</span>`:''),'go',String(i))).join('')
+      +G.items.map((it,k)=>it._ch>0&&G.zeige==null&&d>0
+          ? btn(`${esc(it.n)} benutzen <span class="klein">· ${it._ch} ${it._ch===1?'Ladung':'Ladungen'}</span>`,'use',String(k)) : '').join('')
+      +btn(`Inventar <span class="klein">· ${G.items.length} ${G.items.length===1?'Item':'Items'}</span>`,'inv');
   }
   else if(S==='fight'){
     const q=G.q,mp=G.mon.hp/G.mon.max*100;
@@ -254,6 +278,9 @@ function render(){
       +box(`<p class="klein">${esc(q.f)}</p><p>${esc(q.s)}</p>`,'q'+q.id);
     if(G.antwort===null){
       h+=opts.map(k=>btn(`${k}) ${esc(q.o[k])}`,'ans',k)).join('');
+      if(hatWette()) h+= G.wette
+        ? box(`<p class="richtig">Wette läuft: doppelter Schaden, doppelter HP-Verlust.</p>`,'wette1','duenn')
+        : btn(`Wetten <span class="klein">· doppelter Schaden bei richtig, doppelter HP-Verlust bei falsch</span>`,'wette');
       if(G.weg.length)h+=`<p class="hinweis">${G.weg.length} Falschantwort${G.weg.length>1?'en':''} durch ein Item entfernt.</p>`;
     }else{
       const ok=G.antwort===q.c;
@@ -267,6 +294,23 @@ function render(){
      +G.loot.map((i,k)=>btn(`${esc(i.n)} <span class="klein">· ${esc(i.r)}</span><br><span class="klein">${esc(i.x)}</span>
         <div class="chips">${i.g.map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div>`,'take',String(k))).join('')
      +btn(`Neu würfeln (${G.rerolls})`,'reroll','',G.rerolls>0?'':'disabled');
+  }
+  else if(S==='inv'){
+    h=kopf()+`<h2>Inventar</h2>`
+     +(G.items.length?G.items.map(i=>box(
+        `<div class="zeile"><span>${esc(i.n)}</span><span class="klein">${esc(i.r)}</span></div>
+         <p class="klein">${esc(i.x)}</p>
+         ${i._ch!=null?`<p class="klein">${i._ch>0?`${i._ch} ${i._ch===1?'Ladung':'Ladungen'} übrig`:'aufgebraucht'}</p>`:''}
+         <div class="chips">${i.g.map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div>`,'i'+i.id,'duenn')).join('')
+        : box(`<p class="klein">Noch keine Items. Das erste gibt es nach der ersten Quest.</p>`,'leer','duenn'))
+     +setUebersicht()
+     +btn('Zurück','back');
+  }
+  else if(S==='drop'){
+    h=kopf()+box(`<h2>Beute</h2><p class="klein">${esc(G.mon0||'Das Monster')} lässt etwas fallen.</p>`,'drop')
+     +G.drop.map((i,k)=>btn(`${esc(i.n)} <span class="klein">· ${esc(i.r)}</span><br><span class="klein">${esc(i.x)}</span>
+        <div class="chips">${i.g.map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div>`,'takedrop',String(k))).join('')
+     +btn('Liegen lassen','takedrop','-1');
   }
   else if(S==='end'){
     h=`<h1>${G.dead?'Run beendet':'Geschafft'}</h1>
@@ -289,6 +333,14 @@ function render(){
   frames();
   window.scrollTo(0,0);
 }
+function setUebersicht(){
+  const tags=['chirurgie','notaufnahme','groessenwahn','unialltag','medimeister'];
+  const zeilen=tags.map(t=>{const n=tagN(t);if(!n)return '';
+    const stufe=n>=5?'5er-Bonus aktiv':n>=3?'3er-Bonus aktiv':`noch ${3-n} bis zum Bonus`;
+    return `<div class="zeile"><span class="klein">${t}</span><span class="klein mono">${n} · ${stufe}</span></div>`;}).join('');
+  return zeilen?box(`<p class="klein">Sammlungen</p>${zeilen}`,'sets','duenn'):'';
+}
+function hatWette(){return G.items.some(i=>i.e.some(e=>e.op==='offer_gamble'));}
 function rel(e){
   const m={branch_of:'Ast',continues_as:'Fortsetzung',drains_into:'mündet in',
            anastomosis:'Anastomose',portal:'Pfortaderstrecke',portokaval:'portokaval'};
@@ -309,11 +361,33 @@ app.addEventListener('click',async ev=>{
   else if(a==='ans'){antworte(arg);}
   else if(a==='weiter'){weiter();}
   else if(a==='take'){equip(G.loot[+arg]);naechstesLevel();}
+  else if(a==='inv'){G.zurueck=S;S='inv';}
+  else if(a==='back'){S=G.zurueck||'nav';}
+  else if(a==='wette'){G.wette=true;}
+  else if(a==='use'){benutze(+arg);}
+  else if(a==='takedrop'){
+    if(+arg>=0)equip(G.drop[+arg]);
+    G.drop=null;S='nav';
+    if(G.node===G.ziel)levelGeschafft();
+  }
   else if(a==='reroll'){if(G.rerolls>0){G.rerolls--;G.loot=loot();}}
   render();
 });
+function benutze(k){
+  const it=G.items[k];
+  if(!it||!it._ch)return;
+  const aus=A[G.node]||[];
+  let best=-1,bd=Infinity;
+  aus.forEach((e,i)=>{const dd=G.dist[e.t];if(dd!=null&&dd<bd){bd=dd;best=i;}});
+  if(best<0){G.msg='Von hier führt ohnehin kein Weg zum Ziel — die Ladung bleibt erhalten.';return;}
+  it._ch--;
+  G.zeige=best;
+  G.msg=`${esc(it.n)}: der Weg führt über <span class="lat">${esc(nm(aus[best].t))}</span>.`
+      + (it._ch?` ${it._ch} ${it._ch===1?'Ladung':'Ladungen'} übrig.`:' Damit ist er aufgebraucht.');
+}
 function gehe(i){
-  const e=(A[G.node]||[])[i];if(!e)return;
+  const e=(A[G.node]||[])[i];
+  if(!e){ if(S==='drop'){G.drop=null;S='nav';if(G.node===G.ziel)levelGeschafft();} return; }
   const alt=G.dist[G.node],neu=G.dist[e.t];
   G.msg='';
   if(neu==null){
@@ -321,7 +395,7 @@ function gehe(i){
     if(G.hp<=0){ende(true);return;}
     render();return;
   }
-  G.node=e.t;G.branches++;
+  G.node=e.t;G.branches++;G.zeige=null;
   if(alt!=null&&neu>alt)G.msg='Umweg — das Ziel liegt jetzt weiter entfernt.';
   if(G.node===G.ziel){levelGeschafft();return;}
   if(G.branches>=G.nextFight){G.nextFight=G.branches+3+((Math.random()*4)|0);kampf();}
@@ -338,19 +412,19 @@ function levelGeschafft(){
   if(G.level>=10)return ende(false);
   G.loot=loot();S='loot';
 }
-function naechstesLevel(){G.level++;quest();G.msg='';S='nav';}
+function naechstesLevel(){G.level++;quest();G.msg='';G.zeige=null;S='nav';}
 function antworte(k){
   G.qi++;const q=G.q,ok=k===q.c;G.antwort=k;bewerte(q.id,ok);
   if(ok){
     G.corrects++;G.streak++;G.lastWrong=false;
     const {d,krit}=schaden();G.mon.hp-=d;G.kills+= (G.mon.hp<=0?1:0);
-    G.feedback=`${krit?'Kritischer Treffer! ':''}${d} Schaden.`;
+    G.feedback=`${G.wette?'Wette gewonnen. ':''}${krit?'Kritischer Treffer! ':''}${d} Schaden.`;
     for(const it of G.items)for(const e of it.e)
       if(e.hook==='onCorrect'&&e.op==='heal'&&(G.corrects%(e.condition?.every_nth_correct||1)===0))
         G.hp=Math.min(G.hpMax,G.hp+e.value);
   }else{
     G.streak=0;G.lastWrong=true;
-    const l=verlust();G.wrongFight=true;G.hp-=l;G.feedback=`−${l} HP.`;
+    const l=verlust();G.wrongFight=true;G.hp-=l;G.feedback=`${G.wette?'Wette verloren. ':''}−${l} HP.`;
     if(G.hp<=0){
       const rev=G.items.find(i=>i.e.some(e=>e.hook==='onDeath'&&e.op==='revive'&&!i._used));
       if(rev){rev._used=true;const e=rev.e.find(e=>e.op==='revive');G.hp=e.value;
@@ -360,8 +434,17 @@ function antworte(k){
   saveMeta();
 }
 function weiter(){
-  if(G.hp<=0)return ende(true);
-  if(G.mon.hp<=0){G.mon=null;G.msg='Monster besiegt.';S='nav';
+  if(G.hp<=0){ende(true);return;}
+  if(G.mon.hp<=0){
+    const name=G.mon.n; G.mon=null; G.msg=name+' besiegt.';
+    let p=0.30;
+    for(const it of G.items)for(const e of it.e)
+      if(e.hook==='onLoot'&&e.op==='extra_drop')p+=e.condition?.chance??0.2;
+    if(Math.random()<Math.min(p,0.75)){
+      const auswahl=loot().slice(0,2);
+      if(auswahl.length){G.drop=auswahl;G.mon0=name;S='drop';return;}
+    }
+    S='nav';
     if(G.node===G.ziel)return levelGeschafft();
     return;}
   naechsteFrage();G.antwort=null;
