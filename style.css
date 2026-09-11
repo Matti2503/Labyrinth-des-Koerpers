@@ -3,6 +3,12 @@
   --tinte:#2B4A8B;
   --tinte-blass:#8fa2c4;
   --rot:#A6362F;
+  /* Gefaessfarben: Arterien rot, Venen blau, Pfortader violett, Kapillarbett gemischt */
+  --arteriell:#A6362F;
+  --venoes:#2B4A8B;
+  --portal:#6A3F86;
+  --kapillar:#8A4E6B;
+  --kammer:#3F5470;
   --gruen:#3F6B45;
   --schrift:"Bradley Hand","Chalkboard SE","Segoe Print","Comic Sans MS",cursive;
 }
@@ -72,3 +78,14 @@ hr{border:0;border-top:1.5px dashed rgba(43,74,139,.3);margin:16px 0}
   border:1.2px dashed rgba(43,74,139,.35);border-radius:4px;padding:8px;margin:8px 0;
   resize:vertical;word-break:break-all;-webkit-user-select:text;user-select:text}
 .code:focus{outline:2px dashed var(--tinte);outline-offset:2px}
+
+/* Faerbung nach Gefaesstyp. Die Boxen setzen --tinte lokal um,
+   dadurch faerben sich Rahmen, Ueberschrift und Gangfigur mit. */
+.t-arteriell{--tinte:var(--arteriell)}
+.t-venoes{--tinte:var(--venoes)}
+.t-portal{--tinte:var(--portal)}
+.t-kapillarbett{--tinte:var(--kapillar)}
+.t-kammer{--tinte:var(--kammer)}
+.legende{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px;font-size:12.5px}
+.legende span{display:inline-flex;align-items:center;gap:4px;color:#5d6f96}
+.legende i{width:14px;height:3px;border-radius:2px;display:inline-block}

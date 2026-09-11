@@ -1,5 +1,5 @@
 /* Leitungsbahnen — Prototyp */
-const BUILD='10';
+const BUILD='12';
 const D=window.GAMEDATA;
 const A={},R={};
 for(const e of D.edges){
@@ -34,6 +34,10 @@ function sortiere(quelle,liste){
 }
 const nm=id=>D.nodes[id]?.n||id;
 const de=id=>D.nodes[id]?.d||'';
+const typ=id=>D.nodes[id]?.t||'arteriell';
+const tk=id=>'t-'+typ(id);                       // CSS-Klasse nach Gefaesstyp
+const TYPNAME={arteriell:'Arterie',venoes:'Vene',portal:'Pfortadersystem',
+               kapillarbett:'Kapillarbett',kammer:'Herzhöhle'};
 for(const k in A) A[k]=sortiere(k,A[k]);
 
 /* ---------- Rough-Rahmen, deterministisch geseedet ---------- */
@@ -124,17 +128,18 @@ function codeEin(txt){
   return {coins:Math.max(0,k.c|0),perks,runs:Math.max(0,k.r|0),best:Math.max(0,Math.min(10,k.b|0)),
           enc:Math.max(0,k.e|0),srs};
 }
+let startMonster='zweifel';
 let gespeichert=null;
 let entwurf=null;      // eingelesener, noch nicht uebernommener Fortschritt
 let hinweis='';        // Rueckmeldung an den Nutzer                                // Vorschau fuer das Hauptmenue
 
 const PERKS=[
- {id:'hp',n:'Dickeres Fell',x:'+10 maximale HP',c:25,max:3},
- {id:'dmg',n:'Schärfere Klinge',x:'+2 Grundschaden',c:30,max:3},
- {id:'rr',n:'Zweiter Kaffee',x:'+1 Reroll pro Run',c:40,max:2},
- {id:'crit',n:'Ruhige Hand',x:'+5 % Krit-Chance',c:50,max:2},
- {id:'srs',n:'Wiederholungsdrill',x:'Fehlerfragen kommen öfter',c:70,max:1},
- {id:'opt',n:'Semesterferien',x:'5 Item-Optionen statt 4',c:90,max:1}];
+ {id:'hp',n:'Dickeres Fell',x:'+10 maximale HP',c:15,max:3},
+ {id:'dmg',n:'Schärfere Klinge',x:'+2 Grundschaden',c:18,max:3},
+ {id:'rr',n:'Zweiter Kaffee',x:'+1 Reroll pro Run',c:26,max:2},
+ {id:'crit',n:'Ruhige Hand',x:'+5 % Krit-Chance',c:32,max:2},
+ {id:'srs',n:'Wiederholungsdrill',x:'Fehlerfragen kommen öfter',c:45,max:1},
+ {id:'opt',n:'Semesterferien',x:'5 Item-Optionen statt 4',c:60,max:1}];
 let meta={coins:0,perks:{},srs:{},enc:0,runs:0,best:0};
 const perk=id=>meta.perks[id]||0;
 
@@ -281,12 +286,104 @@ function bewerte(id,ok){
   if(!ok)s.w++;
   meta.srs[id]=s;
 }
-const MONSTER=['Der Zweifel','Kreuzfrage','Altklausurgeist','Blackout','Nachtschicht',
-  'Der Prüfer','Sinusknoten-Kobold','Das Skript'];
+const MONSTER=[
+ // Stufe 1 — Level 1 bis 3
+ {id:'zweifel',n:'Der Zweifel',t:1,p:`
+  <path d="M22 96 C10 60 16 20 60 14 C104 20 110 60 98 96 C84 88 76 100 60 92 C44 100 36 88 22 96Z"/>
+  <ellipse cx="60" cy="46" rx="20" ry="14"/><circle cx="60" cy="46" r="6" fill="var(--tinte)"/>
+  <path d="M44 74 q16 8 32 0"/>`},
+ {id:'kreuzfrage',n:'Die Kreuzfrage',t:1,p:`
+  <path d="M38 26 L58 50 L80 26 M38 88 L58 62 L80 88"/>
+  <circle cx="59" cy="56" r="19"/>
+  <circle cx="52" cy="51" r="3" fill="var(--tinte)"/><circle cx="67" cy="51" r="3" fill="var(--tinte)"/>
+  <path d="M51 66 q8 7 17 0"/>
+  <path d="M36 24 l-11 -8 M82 24 l11 -8 M36 90 l-11 9 M82 90 l11 9"/>`},
+ {id:'schwarm',n:'Erythrozytenschwarm',t:1,p:`
+  <ellipse cx="38" cy="44" rx="17" ry="12"/><ellipse cx="38" cy="44" rx="6" ry="4"/>
+  <ellipse cx="80" cy="35" rx="14" ry="10"/><ellipse cx="80" cy="35" rx="5" ry="3.5"/>
+  <ellipse cx="60" cy="76" rx="19" ry="13"/><ellipse cx="60" cy="76" rx="7" ry="4.5"/>
+  <path d="M31 39 l4 3 M45 39 l-4 3 M53 71 l5 3 M67 71 l-5 3"/>`},
+ // Stufe 2 — Level 4 bis 6
+ {id:'altklausur',n:'Der Altklausurgeist',t:2,p:`
+  <path d="M28 98 V46 C28 24 43 12 60 12 C77 12 92 24 92 46 V98 l-8 -9 -8 9 -8 -9 -8 9 -8 -9 -8 9Z"/>
+  <circle cx="50" cy="44" r="4" fill="var(--tinte)"/><circle cx="72" cy="44" r="4" fill="var(--tinte)"/>
+  <path d="M51 63 q9 8 19 0"/>
+  <path d="M74 74 h18 v16 h-18Z M78 79 h10 M78 84 h10"/>`},
+ {id:'nachtschicht',n:'Die Nachtschicht',t:2,p:`
+  <circle cx="54" cy="28" r="15"/>
+  <path d="M46 25 q5 -4 10 0 M60 25 q5 -4 9 0"/>
+  <path d="M48 33 q6 4 12 0"/>
+  <path d="M54 43 V78 M54 52 L36 62 M54 52 L74 60 M54 78 L44 100 M54 78 L66 100"/>
+  <path d="M76 58 h14 v12 h-14Z M90 61 h5 v5 h-5"/>
+  <path d="M80 52 q2 -6 0 -9 M86 52 q2 -6 0 -9"/>`},
+ {id:'blackout',n:'Der Blackout',t:2,p:`
+  <path d="M22 76 q-8 -24 12 -29 q1 -21 25 -19 q19 -7 28 11 q21 1 18 21 q7 19 -14 23 H34 q-13 -2 -12 -7Z"/>
+  <path d="M34 46 q10 8 20 0 M62 44 q10 8 20 0 M40 60 q12 7 24 0"/>
+  <circle cx="48" cy="70" r="3.5" fill="var(--tinte)"/><circle cx="72" cy="68" r="3.5" fill="var(--tinte)"/>`},
+ // Stufe 3 — Level 7 bis 9
+ {id:'pruefer',n:'Der Prüfer',t:3,p:`
+  <circle cx="58" cy="24" r="14"/>
+  <path d="M46 22 h10 M60 22 h10 M56 22 q2 3 4 0"/>
+  <circle cx="51" cy="22" r="5"/><circle cx="65" cy="22" r="5"/>
+  <path d="M52 32 h12"/>
+  <path d="M58 38 V82 M58 48 L38 58 M58 48 L80 54 M58 82 L48 102 M58 82 L70 102"/>
+  <path d="M30 54 h20 v22 h-20Z M34 60 h12 M34 66 h12 M34 72 h8"/>`},
+ {id:'skript',n:'Das Skript',t:3,p:`
+  <path d="M24 40 h72 v50 h-72Z"/><path d="M28 34 h72 v50 M32 28 h72 v50"/>
+  <circle cx="48" cy="60" r="4" fill="var(--tinte)"/><circle cx="72" cy="60" r="4" fill="var(--tinte)"/>
+  <path d="M46 74 q14 9 28 0"/>
+  <path d="M40 90 V102 M80 90 V102"/>`},
+ {id:'thrombus',n:'Der Thrombus',t:3,p:`
+  <path d="M30 62 q-8 -18 8 -24 q4 -16 22 -14 q18 -6 26 8 q16 4 12 22 q10 14 -6 24 q-6 16 -24 12 q-16 8 -28 -6 q-14 -6 -10 -22Z"/>
+  <circle cx="50" cy="56" r="3.5" fill="var(--tinte)"/><circle cx="72" cy="54" r="3.5" fill="var(--tinte)"/>
+  <path d="M50 72 q12 6 22 -2"/>
+  <path d="M30 38 l-10 -8 M92 44 l11 -7 M88 84 l10 8 M34 86 l-9 9"/>`},
+ {id:'vagus',n:'Die Vagusschlange',t:3,p:`
+  <path d="M18 94 q22 -6 20 -24 q-2 -20 18 -24 q20 -4 22 -18 q2 -12 -8 -16"/>
+  <circle cx="66" cy="14" r="12"/>
+  <circle cx="62" cy="12" r="2.6" fill="var(--tinte)"/><circle cx="72" cy="12" r="2.6" fill="var(--tinte)"/>
+  <path d="M64 20 q5 4 9 0 M68 24 v8 M68 32 l-4 5 M68 32 l4 5"/>`},
+ // Stufe 4 — Level 10
+ {id:'physikum',n:'Das Physikum',t:4,p:`
+  <path d="M14 100 L60 10 L106 100Z"/>
+  <path d="M28 78 h64 M38 60 h44 M48 42 h24"/>
+  <circle cx="48" cy="86" r="5"/><circle cx="48" cy="86" r="2" fill="var(--tinte)"/>
+  <circle cx="72" cy="86" r="5"/><circle cx="72" cy="86" r="2" fill="var(--tinte)"/>
+  <circle cx="60" cy="68" r="4.5"/><circle cx="60" cy="68" r="2" fill="var(--tinte)"/>
+  <path d="M50 96 q10 6 20 0"/>`,hpMult:1.6},
+ {id:'kolloquium',n:'Das Kolloquium',t:5,serie:3,p:`
+  <path d="M16 98 h88 v-8 H16Z"/>
+  <path d="M26 90 V58 q0 -16 16 -16 h36 q16 0 16 16 v32"/>
+  <circle cx="42" cy="30" r="11"/><circle cx="60" cy="24" r="12"/><circle cx="78" cy="30" r="11"/>
+  <circle cx="38" cy="29" r="2.4" fill="var(--tinte)"/><circle cx="46" cy="29" r="2.4" fill="var(--tinte)"/>
+  <circle cx="55" cy="23" r="2.6" fill="var(--tinte)"/><circle cx="65" cy="23" r="2.6" fill="var(--tinte)"/>
+  <circle cx="74" cy="29" r="2.4" fill="var(--tinte)"/><circle cx="82" cy="29" r="2.4" fill="var(--tinte)"/>
+  <path d="M37 36 q5 4 10 0 M55 31 q5 4 10 0 M73 36 q5 4 10 0"/>
+  <path d="M34 62 h52 M34 72 h40"/>`},
+ {id:'ausschuss',n:'Der Prüfungsausschuss',t:4,p:`
+  <circle cx="30" cy="40" r="13"/><circle cx="60" cy="32" r="14"/><circle cx="90" cy="40" r="13"/>
+  <circle cx="26" cy="38" r="2.6" fill="var(--tinte)"/><circle cx="35" cy="38" r="2.6" fill="var(--tinte)"/>
+  <circle cx="55" cy="30" r="2.8" fill="var(--tinte)"/><circle cx="65" cy="30" r="2.8" fill="var(--tinte)"/>
+  <circle cx="85" cy="38" r="2.6" fill="var(--tinte)"/><circle cx="95" cy="38" r="2.6" fill="var(--tinte)"/>
+  <path d="M25 46 q5 4 10 0 M54 39 q6 5 12 0 M85 46 q5 4 10 0"/>
+  <path d="M18 96 h84 v-26 h-84Z M18 82 h84"/>`,hpMult:1.5}
+];
+const monById=id=>MONSTER.find(m=>m.id===id)||MONSTER[0];
+const monStufe=L=>L<=3?1:L<=6?2:L<=9?3:4;
 const monHP=()=>{const L=G.level;return L<=2?15:L<=4?25:L<=6?35:L<=8?45:55;};
+function finale(){
+  const w=MONSTER.find(m=>m.id==='kolloquium');
+  G.mon={id:w.id,n:w.n,hp:w.serie,max:w.serie,serie:w.serie};
+  G.wrongFight=false;G.qi=0;G.stack=0;G.finale=true;naechsteFrage();S='fight';
+}
 function kampf(){
-  const m=monHP();
-  G.mon={n:MONSTER[(Math.random()*MONSTER.length)|0],hp:m,max:m};
+  const stufe=monStufe(G.level);
+  let pool=MONSTER.filter(m=>m.t===stufe);
+  if(!pool.length)pool=MONSTER.filter(m=>m.t<=stufe);
+  if(!pool.length)pool=MONSTER;
+  const w=pool[(Math.random()*pool.length)|0];
+  const m=w.serie?w.serie:Math.round(monHP()*(w.hpMult||1));
+  G.mon={id:w.id,n:w.n,hp:m,max:m,serie:w.serie||0};
   G.wrongFight=false;G.qi=0;G.stack=0;naechsteFrage();S='fight';
 }
 function naechsteFrage(){
@@ -354,7 +451,8 @@ function kopf(){
     ${G.items.length?`<div class="chips">${G.items.slice(0,4).map(i=>`<span class="chip">${esc(i.n)}</span>`).join('')}${G.items.length>4?`<span class="chip">+${G.items.length-4}</span>`:''}</div>`:''}
     </div>${S==='nav'?'':heldSVG()}</div>`,'kopf'+G.level+'-'+G.items.length+'-'+S);
 }
-function figurPfade(breite){
+const FIG_VB=62, FIG_VBH=76;      // Koordinatensystem der Figur
+function figurPfade(breite,mitteX){
   const t=n=>G.items.filter(i=>i.g.includes(n)).length;
   const L=G.level, p=[];
   p.push('<circle cx="30" cy="16" r="8"/><path d="M30 24 V50 M30 32 L18 40 M30 32 L42 40 M30 50 L21 66 M30 50 L39 66"/>');
@@ -365,15 +463,23 @@ function figurPfade(breite){
   if(t('medimeister')>0) p.push('<path d="M44 60 h9 v9 h-9Z M53 62 h4 v4 h-4"/>'); // Krug
   if(L>=5) p.push('<path d="M22 9 q8 -7 16 0"/>');                              // Helmbuegel
   if(L>=8) p.push('<path d="M14 70 q16 5 32 0"/>');                             // Standlinie
-  const sk=breite/62;
-  return `<g transform="translate(3,0) scale(${sk.toFixed(3)})" fill="none" stroke="var(--tinte)"
+  const sk=breite/FIG_VB;
+  // Die Figur ist im eigenen Koordinatensystem um x=31 symmetrisch.
+  const dx=(mitteX==null? 3 : mitteX - (FIG_VB/2)*sk);
+  return `<g transform="translate(${dx.toFixed(2)},0) scale(${sk.toFixed(3)})" fill="none" stroke="var(--tinte)"
     stroke-width="${(1.9/sk).toFixed(2)}" stroke-linecap="round" stroke-linejoin="round">${p.join('')}</g>`;
 }
 function heldSVG(){
-  return `<svg viewBox="0 0 62 76" width="50" height="62" aria-label="Deine Figur, Level ${G.level}"
-    style="display:block;flex:0 0 auto">${figurPfade(56)}</svg>`;
+  return `<svg viewBox="0 0 ${FIG_VB} ${FIG_VBH}" width="50" height="62" aria-label="Deine Figur, Level ${G.level}"
+    style="display:block;flex:0 0 auto">${figurPfade(56,FIG_VB/2)}</svg>`;
 }
-function monsterSVG(){
+function monsterSVG(id){
+  const m=monById(id);
+  return `<svg viewBox="0 0 120 110" width="112" height="102" aria-label="${esc(m.n)}"
+    style="display:block;margin:0 auto"><g fill="none" stroke="var(--tinte)" stroke-width="2"
+    stroke-linecap="round" stroke-linejoin="round">${m.p}</g></svg>`;
+}
+function monsterSVGalt(){
   return `<svg viewBox="0 0 120 110" width="112" height="102" aria-hidden="true" style="display:block;margin:0 auto">
     <g fill="none" stroke="var(--tinte)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
     <path d="M22 96 C10 60 16 20 60 14 C104 20 110 60 98 96 C84 88 76 100 60 92 C44 100 36 88 22 96Z"/>
@@ -390,7 +496,7 @@ function render(){
   if(S==='start'){
     h=`<h1>Das Labyrinth<br>des Körpers</h1>
        <p class="klein">Ein Roguelite über Leitungsbahnen</p>
-       ${box(monsterSVG(),'mon')}
+       ${box(monsterSVG(startMonster),'mon')}
        ${gespeichert?btn(`Run fortsetzen <span class="klein">· Level ${gespeichert.G.level}, ${Math.max(0,gespeichert.G.hp)} HP, ${gespeichert.G.items.length} Items</span>`,'weiterrun'):''}
        ${btn(gespeichert?'Neuen Run starten <span class="klein">· verwirft den gespeicherten</span>':'Neuen Run starten','start')}
        ${btn(`Laden &amp; Perks &nbsp;·&nbsp; ${meta.coins} Coins`,'shop')}
@@ -404,17 +510,24 @@ function render(){
     const aus=(A[G.node]||[]);
     const d=G.dist[G.node];
     h=kopf()+box(`<h2 class="lat">${esc(nm(G.node))}</h2>
-      <p class="klein">${esc(de(G.node))}${D.nodes[G.node].r?' · '+esc(D.nodes[G.node].r):''}</p>
-      ${d!=null?`<p class="klein">Noch ${d} ${d===1?'Abzweigung':'Abzweigungen'} bis zum Ziel</p>`:`<p class="klein falsch">Von hier führt kein Weg zum Ziel.</p>`}`,'ort'+G.node)
+      <p class="klein">${esc(TYPNAME[typ(G.node)]||'')}${D.nodes[G.node].r?' · '+esc(D.nodes[G.node].r):''}${
+        de(G.node)?' · '+esc(de(G.node)):''}</p>
+      ${d!=null?`<p class="klein">Noch ${d} ${d===1?'Abzweigung':'Abzweigungen'} bis zum Ziel</p>`:`<p class="klein falsch">Von hier führt kein Weg zum Ziel.</p>`}`,'ort'+G.node,tk(G.node))
       +(G.msg?box(`<p>${G.msg}</p>`,'msg','duenn'):'')
       +`<p class="klein abstand">Wohin fließt das Blut?</p>`
-      +`<div id="gang" class="gang"><svg id="gangsvg" class="gangsvg" width="${GANG.w}" aria-hidden="true"></svg>`
-      +aus.map((e,i)=>`<div class="box duenn opt" data-rough="go${i}"><button data-act="go" data-arg="${i}">`
+      +`<div id="gang" class="gang ${tk(G.node)}"><svg id="gangsvg" class="gangsvg" width="${GANG.w}" aria-hidden="true"></svg>`
+      +aus.map((e,i)=>`<div class="box duenn opt ${tk(e.t)}" data-rough="go${i}"><button data-act="go" data-arg="${i}">`
           +`<span class="lat">${esc(nm(e.t))}</span><span class="klein"> — ${esc(rel(e))}</span>`
           +(G.zeige===i?` <span class="klein richtig">· hierhin</span>`:'')+`</button></div>`).join('')
       +`</div>`
       +G.items.map((it,k)=>it._ch>0&&G.zeige==null&&d>0
           ? btn(`${esc(it.n)} benutzen <span class="klein">· ${it._ch} ${it._ch===1?'Ladung':'Ladungen'}</span>`,'use',String(k)) : '').join('')
+      +`<div class="legende">
+          <span><i style="background:var(--arteriell)"></i>Arterie</span>
+          <span><i style="background:var(--venoes)"></i>Vene</span>
+          <span><i style="background:var(--portal)"></i>Pfortader</span>
+          <span><i style="background:var(--kapillar)"></i>Kapillarbett</span>
+        </div>`
       +btn(`Inventar <span class="klein">· ${G.items.length} ${G.items.length===1?'Item':'Items'}</span>`,'inv')
       +btn(G.gesichert?'Gespeichert <span class="klein">· Stand gesichert</span>':'Speichern und pausieren','sichern');
   }
@@ -422,9 +535,12 @@ function render(){
     const q=G.q,mp=G.mon.hp/G.mon.max*100;
     const opts=['A','B','C','D','E'].filter(k=>q.o[k]&&!G.weg.includes(k));
     const sicht=G.items.some(i=>i.e.some(e=>e.op==='reveal_target_hp'));
-    h=kopf()+box(`${monsterSVG()}<div class="zeile"><span>${esc(G.mon.n)}</span><span class="mono">${
-      sicht?`${Math.max(0,G.mon.hp)} / ${G.mon.max} HP`:'? HP'}</span></div>
-      <div class="balken rot"><i style="width:${Math.max(0,mp)}%"></i></div>`,'m'+G.mon.n)
+    const serie=G.mon.serie;
+    h=kopf()+box(`${monsterSVG(G.mon.id)}<div class="zeile"><span>${esc(G.mon.n)}</span><span class="mono">${
+      serie?'●'.repeat(G.mon.max-G.mon.hp)+'○'.repeat(Math.max(0,G.mon.hp))
+           :(sicht?`${Math.max(0,G.mon.hp)} / ${G.mon.max} HP`:'? HP')}</span></div>
+      ${serie?`<p class="klein">Nur drei richtige Antworten in Folge bestehen das Kolloquium. Ein Fehler setzt die Serie zurück.</p>`:''}
+      <div class="balken rot"><i style="width:${Math.max(0,mp)}%"></i></div>`,'m'+G.mon.id)
       +box(`<div class="zeile"><span class="klein">${esc(q.f)}</span>
         <span class="klein">${'●'.repeat(q.d||3)}${'○'.repeat(Math.max(0,5-(q.d||3)))}${
           kritBonus(q.d)>0?` · +${Math.round(kritBonus(q.d)*100)} % Krit`:''}</span></div>
@@ -442,7 +558,8 @@ function render(){
       if(G.weg.length)h+=`<p class="hinweis">${G.weg.length} Falschantwort${G.weg.length>1?'en':''} durch ein Item entfernt.</p>`;
     }else{
       const ok=G.antwort===q.c;
-      h+=box(`<p class="${ok?'richtig':'falsch'}">${ok?'Richtig':'Falsch'} — ${q.c}) ${esc(q.o[q.c])}</p>
+      h+=btn(`Inventar <span class="klein">· ${G.items.length}</span>`,'inv')
+        +box(`<p class="${ok?'richtig':'falsch'}">${ok?'Richtig':'Falsch'} — ${q.c}) ${esc(q.o[q.c])}</p>
         <p class="klein">${esc(q.e)}</p>${G.feedback?`<p class="klein">${G.feedback}</p>`:''}`,'fb'+q.id)
         +btn(G.mon.hp<=0?'Weiter':'Nächste Frage','weiter');
     }
@@ -517,12 +634,31 @@ function render(){
       ${btn('Abbrechen','shop')}`;
   }
   else if(S==='end'){
-    h=`<h1>${G.dead?'Run beendet':'Geschafft'}</h1>
+    const quote=G.beantwortet?Math.round(G.corrects/G.beantwortet*100):0;
+    const titel=G.dead?'Run beendet':(G.finaleBestanden?'Kolloquium bestanden':'Geschafft');
+    const setz=['chirurgie','notaufnahme','groessenwahn','unialltag','medimeister']
+      .map(t=>[t,G.items.filter(i=>i.g.includes(t)).length]).filter(x=>x[1]>=3);
+    h=`<h1>${titel}</h1>
+      ${G.finaleBestanden?box(`${monsterSVG('kolloquium')}<p class="richtig zentriert">Drei Fragen in Folge — der Run ist vollständig abgeschlossen.</p>`,'fin'):''}
       ${box(`<div class="zeile"><span>Erreichtes Level</span><span class="mono">${G.level}</span></div>
         <div class="zeile"><span>Besiegte Monster</span><span class="mono">${G.kills}</span></div>
-        <div class="zeile"><span>Richtige Antworten</span><span class="mono">${G.corrects}</span></div>
+        <div class="zeile"><span>Beantwortete Fragen</span><span class="mono">${G.beantwortet||0}</span></div>
+        <div class="zeile"><span>Trefferquote</span><span class="mono">${quote} %</span></div>
+        <div class="zeile"><span>Verbliebene HP</span><span class="mono">${Math.max(0,G.hp)} / ${G.hpMax}</span></div>`,'stat')}
+      ${box(`<div class="zeile klein"><span>Grundbetrag${G.dead?' (halbiert)':''}</span><span class="mono">${G.gainBasis}</span></div>
+        ${G.gainMult!==1?`<div class="zeile klein"><span>Item-Bonus</span><span class="mono">×${G.gainMult.toFixed(2)}</span></div>`:''}
+        ${G.gainExtra?`<div class="zeile klein"><span>Zusatz aus Items</span><span class="mono">+${G.gainExtra}</span></div>`:''}
         <hr><div class="zeile"><span>Coins aus diesem Run</span><span class="mono">+${G.gain}</span></div>
-        <div class="zeile klein"><span>Gesamt</span><span class="mono">${meta.coins}</span></div>`,'end')}
+        <div class="zeile klein"><span>Gesamtbestand</span><span class="mono">${meta.coins}</span></div>`,'coins')}
+      <h2 class="abstand">Deine Ausrüstung</h2>
+      ${G.items.length?G.items.map(i=>box(
+         `<div class="zeile"><span>${esc(i.n)}</span><span class="klein">${esc(i.r)}</span></div>
+          <p class="klein">${esc(i.x)}</p>
+          ${i._ch!=null?`<p class="klein">${i._ch>0?`${i._ch} ${i._ch===1?'Ladung':'Ladungen'} übrig`:'aufgebraucht'}</p>`:''}
+          <div class="chips">${i.g.map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div>`,'e'+i.id,'duenn')).join('')
+        : box(`<p class="klein">Dieser Run endete ohne Items.</p>`,'keine','duenn')}
+      ${setz.length?box(`<p class="klein">Aktive Sammlungen</p>${setz.map(([t,n])=>
+          `<div class="zeile"><span class="klein">${t}</span><span class="klein mono">${n} Items · ${n>=5?'5er-Bonus':'3er-Bonus'}</span></div>`).join('')}`,'setz','duenn'):''}
       ${btn('Neuer Run','start')}${btn('Perks kaufen','shop')}`;
   }
   else if(S==='shop'){
@@ -530,6 +666,7 @@ function render(){
       ${PERKS.map(p=>{const s=perk(p.id),voll=s>=p.max,teuer=meta.coins<p.c;
         return btn(`${esc(p.n)} <span class="klein">${s}/${p.max}</span><br><span class="klein">${esc(p.x)} · ${p.c} Coins</span>`,
           'buy',p.id,(voll||teuer)?'disabled':'');}).join('')}
+      ${G&&G.items&&G.items.length?btn(`Inventar <span class="klein">· ${G.items.length} ${G.items.length===1?'Item':'Items'} im laufenden Run</span>`,'inv'):''}
       ${btn('Zurück','home')}
       <hr>
       ${btn('Fortschritt sichern <span class="klein">· Code zum Kopieren</span>','export')}
@@ -549,7 +686,9 @@ function setUebersicht(){
   return zeilen?box(`<p class="klein">Sammlungen</p>${zeilen}`,'sets','duenn'):'';
 }
 function hatWette(){return G.items.some(i=>i.e.some(e=>e.op==='offer_gamble'));}
-const GANG={w:66,wand:8,rechts:52, halb:15};
+const GANG={w:66,wand:8,rechts:52,halb:15,fig:22};
+const gangMitteX=()=>(GANG.wand+GANG.rechts)/2;
+const gangFigH=()=>GANG.fig*FIG_VBH/FIG_VB;
 function zeichneGang(){
   const g=document.getElementById('gang'); if(!g)return;
   const opts=[...g.querySelectorAll('.opt')];
@@ -573,7 +712,8 @@ function zeichneGang(){
   svg.setAttribute('viewBox',`0 0 ${w} ${H}`);
   svg.setAttribute('height',H);
   svg.innerHTML=`<path class="wand" d="${d}"/>`
-    +`<g id="held" style="transform:translate(0px,${(ys[0]-30).toFixed(0)}px)">${figurPfade(20)}</g>`;
+    +`<g id="held" style="transform:translate(0px,${(ys[0]-gangFigH()/2).toFixed(1)}px)">${
+        figurPfade(GANG.fig,gangMitteX())}</g>`;
   g.dataset.ys=JSON.stringify(ys);
 }
 function laufe(i){
@@ -582,15 +722,16 @@ function laufe(i){
   if(matchMedia('(prefers-reduced-motion: reduce)').matches) return Promise.resolve();
   const ys=JSON.parse(g.dataset.ys), ziel=ys[i];
   if(ziel==null) return Promise.resolve();
+  const oben=ziel-gangFigH()/2;
   const jetzt=parseFloat((h.style.transform.match(/translate\(([-\d.]+)px,\s*([-\d.]+)px\)/)||[0,0,0])[2])||0;
-  const strecke=Math.abs(ziel-30-jetzt);
+  const strecke=Math.abs(oben-jetzt);
   const t1=Math.min(520,Math.max(180,strecke*3.2));
   return new Promise(fertig=>{
     h.style.transition=`transform ${t1}ms cubic-bezier(.4,0,.5,1)`;
-    h.style.transform=`translate(0px,${(ziel-30).toFixed(0)}px)`;
+    h.style.transform=`translate(0px,${oben.toFixed(1)}px)`;
     setTimeout(()=>{
       h.style.transition='transform 300ms ease-in, opacity 300ms ease-in';
-      h.style.transform=`translate(52px,${(ziel-30).toFixed(0)}px)`;
+      h.style.transform=`translate(${GANG.rechts}px,${oben.toFixed(1)}px)`;
       h.style.opacity='0';
       setTimeout(fertig,300);
     },t1+40);
@@ -704,16 +845,27 @@ function levelGeschafft(){
     if(e.op==='coins_add')G.coinAdd=Math.min((G.coinAdd||0)+e.value,e.cap??999);
   }
   if(tagN('notaufnahme')>=5)G.hp=Math.min(G.hpMax,G.hp+10);
-  if(G.level>=10)return ende(false);
+  if(G.level>=10){
+    if(!G.finaleBestanden){G.msg='';return finale();}
+    return ende(false);
+  }
   G.loot=loot();S='loot';
 }
 function naechstesLevel(){G.level++;quest();G.msg='';G.zeige=null;S='nav';}
 function antworte(k){
-  G.qi++;const q=G.q,ok=k===q.c;G.antwort=k;bewerte(q.id,ok);
+  G.qi++;const q=G.q,ok=k===q.c;G.antwort=k;bewerte(q.id,ok);G.beantwortet=(G.beantwortet||0)+1;
   if(ok){
     G.corrects++;G.streak++;G.lastWrong=false;
-    const {d,krit}=schaden();G.stack=(G.stack||0)+1;G.mon.hp-=d;G.kills+= (G.mon.hp<=0?1:0);
-    G.feedback=`${G.wette?'Wette gewonnen. ':''}${krit?'Kritischer Treffer! ':''}${d} Schaden.`;
+    if(G.mon.serie){
+      G.stack=(G.stack||0)+1;G.mon.hp-=1;
+      if(G.mon.hp<=0)G.kills++;
+      G.feedback=G.mon.hp>0
+        ? `Richtig. Noch ${G.mon.hp} ${G.mon.hp===1?'Frage':'Fragen'} in Folge.`
+        : 'Drei in Folge — das Kolloquium ist bestanden.';
+    } else {
+      const {d,krit}=schaden();G.stack=(G.stack||0)+1;G.mon.hp-=d;G.kills+= (G.mon.hp<=0?1:0);
+      G.feedback=`${G.wette?'Wette gewonnen. ':''}${krit?'Kritischer Treffer! ':''}${d} Schaden.`;
+    }
     for(const it of G.items)for(const e of it.e)
       if(e.hook==='onCorrect'&&e.op==='heal'&&(G.corrects%(e.condition?.every_nth_correct||1)===0))
         G.hp=Math.min(G.hpMax,G.hp+e.value);
@@ -730,7 +882,11 @@ function antworte(k){
       G.feedback=`${teil[1]} rettet dich: kein HP-Verlust, ${halb} Schaden.`;
       saveMeta();return;
     }
-    const l=verlust();G.wrongFight=true;G.hp-=l;G.feedback=`${G.wette?'Wette verloren. ':''}−${l} HP.`;
+    const l=verlust();G.wrongFight=true;G.hp-=l;
+    let serieHinweis='';
+    if(G.mon.serie&&G.mon.hp<G.mon.max){G.mon.hp=G.mon.max;serieHinweis=' Die Serie beginnt von vorn.';}
+    else if(G.mon.serie)G.mon.hp=G.mon.max;
+    G.feedback=`${G.wette?'Wette verloren. ':''}−${l} HP.${serieHinweis}`;
     if(G.hp<=0){
       const rev=G.items.find(i=>i.e.some(e=>e.hook==='onDeath'&&e.op==='revive'&&!i._used));
       if(rev){rev._used=true;const e=rev.e.find(e=>e.op==='revive');G.hp=e.value;
@@ -742,6 +898,7 @@ function antworte(k){
 function weiter(){
   if(G.hp<=0){ende(true);return;}
   if(G.mon.hp<=0){
+    if(G.finale){G.finale=false;G.finaleBestanden=true;G.mon=null;return ende(false);}
     const name=G.mon.n; G.mon=null; G.msg=name+' besiegt.';
     for(const it of G.items)for(const e of it.e)
       if(e.hook==='onFightEnd'&&e.op==='reroll_add'&&luck(e.condition?.chance??1)){
@@ -762,12 +919,14 @@ function weiter(){
 function ende(tot){
   if(S==='end')return;                       // doppelte Auswertung verhindern
   G.dead=tot;
-  let c=(G.level-1)*2;                       // Maximum 18 bei Level 10
-  if(tot)c=c*0.5;                            // halbe Ausbeute bei Lebensverlust
-  else for(const it of G.items)for(const e of it.e)
-         if(e.hook==='onRunEnd'&&e.op==='coins_mult')c*=e.value;
+  const basis=(G.level-1)*2;                 // Maximum 18 bei Level 10
+  let c=tot?basis*0.5:basis;                 // halbe Ausbeute bei Lebensverlust
+  let mult=1;
+  for(const it of G.items)for(const e of it.e)
+    if(e.hook==='onRunEnd'&&e.op==='coins_mult')mult*=e.value;
+  c*=mult;                                   // gilt auch, wenn der Run verloren geht
   c=Math.max(0,Math.round(c)+(G.coinAdd||0));
-  G.gain=c;meta.coins+=c;meta.runs++;meta.best=Math.max(meta.best,G.level);
+  G.gain=c; G.gainBasis=Math.round(tot?basis*0.5:basis); G.gainMult=mult; G.gainExtra=G.coinAdd||0;meta.coins+=c;meta.runs++;meta.best=Math.max(meta.best,G.level);
   S='end';                                   // sofort, nicht erst nach dem Speichern
   loescheRun(); gespeichert=null;
   saveMeta();
@@ -781,6 +940,7 @@ for(const ev of ['visibilitychange','pagehide','freeze']){
 /* ---------- Start ---------- */
 (async()=>{
   const m=await loadMeta(); if(m)meta={...meta,...m};
+  startMonster=MONSTER[(Math.random()*MONSTER.length)|0].id;
   gespeichert=await ladeRun();
   render();
 })();
