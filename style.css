@@ -65,3 +65,10 @@ hr{border:0;border-top:1.5px dashed rgba(43,74,139,.3);margin:16px 0}
 .gang .opt{margin:12px 0}
 #held{transform-box:view-box;will-change:transform}
 @media (prefers-reduced-motion:reduce){#held{transition:none !important}}
+
+/* Fortschrittscode zum Kopieren */
+.code{width:100%;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;
+  line-height:1.4;color:var(--tinte);background:rgba(43,74,139,.04);
+  border:1.2px dashed rgba(43,74,139,.35);border-radius:4px;padding:8px;margin:8px 0;
+  resize:vertical;word-break:break-all;-webkit-user-select:text;user-select:text}
+.code:focus{outline:2px dashed var(--tinte);outline-offset:2px}

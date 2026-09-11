@@ -1,5 +1,5 @@
 /* Leitungsbahnen — Prototyp */
-const BUILD='5';
+const BUILD='10';
 const D=window.GAMEDATA;
 const A={},R={};
 for(const e of D.edges){
@@ -74,6 +74,60 @@ async function saveMeta(){
   try{ if(window.storage){await window.storage.set(KEY,s);return;} }catch(e){}
   try{ localStorage.setItem(KEY,s);}catch(e){}
 }
+const RUNKEY='leitungsbahnen.run';
+const LAUFEND=['nav','fight','loot','drop','inv'];
+
+function speichereRun(){
+  if(!G||!LAUFEND.includes(S))return false;
+  const paket=JSON.stringify({v:BUILD,S,G,zeit:Date.now()});
+  let ok=false;
+  try{ localStorage.setItem(RUNKEY,paket); ok=true; }catch(e){}   // synchron, ueberlebt das Beenden
+  try{ if(window.storage) window.storage.set(RUNKEY,paket); ok=true; }catch(e){}
+  return ok;
+}
+async function ladeRun(){
+  let roh=null;
+  try{ roh=localStorage.getItem(RUNKEY); }catch(e){}
+  if(!roh){ try{ if(window.storage){const r=await window.storage.get(RUNKEY); if(r)roh=r.value;} }catch(e){} }
+  if(!roh)return null;
+  try{
+    const p=JSON.parse(roh);
+    if(p.v!==BUILD)return null;                    // Fassungswechsel: Daten koennten unpassend sein
+    if(!p.G||p.G.dead||!LAUFEND.includes(p.S))return null;
+    return p;
+  }catch(e){ return null; }
+}
+function loescheRun(){
+  try{ localStorage.removeItem(RUNKEY); }catch(e){}
+  try{ if(window.storage) window.storage.delete(RUNKEY); }catch(e){}
+}
+function codeAus(m){
+  const kern={c:m.coins|0,p:m.perks||{},r:m.runs|0,b:m.best|0,e:m.enc|0,s:m.srs||{}};
+  return 'LB1-'+btoa(unescape(encodeURIComponent(JSON.stringify(kern)))).replace(/=+$/,'');
+}
+function codeEin(txt){
+  const t=(txt||'').trim().replace(/\s+/g,'');
+  if(!t.startsWith('LB1-'))throw new Error('Der Code beginnt nicht mit LB1-.');
+  let roh=t.slice(4).replace(/-/g,'+').replace(/_/g,'/');
+  while(roh.length%4)roh+='=';
+  let k;
+  try{ k=JSON.parse(decodeURIComponent(escape(atob(roh)))); }
+  catch(e){ throw new Error('Der Code ist unvollständig oder beschädigt.'); }
+  if(typeof k!=='object'||k===null||typeof k.c!=='number')throw new Error('Der Code enthält keinen gültigen Fortschritt.');
+  const perks={};
+  for(const p of PERKS){const v=Math.max(0,Math.min(p.max,(k.p&&k.p[p.id])|0)); if(v)perks[p.id]=v;}
+  const srs={};
+  const gueltig=new Set(D.questions.map(q=>q.id));
+  for(const id in (k.s||{})) if(gueltig.has(id)){
+    const e=k.s[id]; srs[id]={n:Math.max(0,Math.min(4,e.n|0)),due:e.due|0,w:e.w|0};
+  }
+  return {coins:Math.max(0,k.c|0),perks,runs:Math.max(0,k.r|0),best:Math.max(0,Math.min(10,k.b|0)),
+          enc:Math.max(0,k.e|0),srs};
+}
+let gespeichert=null;
+let entwurf=null;      // eingelesener, noch nicht uebernommener Fortschritt
+let hinweis='';        // Rueckmeldung an den Nutzer                                // Vorschau fuer das Hauptmenue
+
 const PERKS=[
  {id:'hp',n:'Dickeres Fell',x:'+10 maximale HP',c:25,max:3},
  {id:'dmg',n:'Schärfere Klinge',x:'+2 Grundschaden',c:30,max:3},
@@ -111,6 +165,10 @@ function quest(){
 }
 /* Items */
 const tagN=t=>G.items.filter(i=>i.g.includes(t)).length;
+/* Schwere Fragen sind riskanter und werden deshalb staerker belohnt:
+   je Schwierigkeitsstufe oberhalb 2 gibt es 7 Prozentpunkte Kritchance dazu. */
+const KRIT_JE_STUFE=0.07;
+const kritBonus=d=>Math.max(0,((d??3)-2))*KRIT_JE_STUFE;
 const luck=c=>Math.random()<(c+G.luck);
 function equip(it){
   it={...it,e:it.e.map(e=>({...e}))};
@@ -144,8 +202,12 @@ function schaden(){
     if(c.target_hp_min!=null&&(G.mon?.max||0)<c.target_hp_min)continue;
     if(c.subject&&G.q?.f!==c.subject)continue;
     if(c.every_nth_correct!=null&&(G.corrects+1)%c.every_nth_correct!==0)continue;
+    if(c.difficulty_min!=null&&(G.q?.d??3)<c.difficulty_min)continue;
     if(e.op==='damage_add')flat+=e.value;
     else if(e.op==='damage_mult')mult*=e.value;
+    else if(e.op==='damage_mult_stacking'){
+      mult*=Math.min(Math.pow(e.value,G.stack||0), e.cap??99);
+    }
     else if(e.op==='damage_add_scaling'){
       const m={monsters_defeated:G.kills,level:G.level,missing_max_hp_per_10:Math.max(0,((100-G.hpMax)/10)|0)}[e.scales_with]||0;
       flat+=Math.min(e.value*m,e.cap??999);
@@ -155,9 +217,19 @@ function schaden(){
   if(tagN('groessenwahn')>=3)mult*=1.15;
   if(G.wette)mult*=2;
   let d=Math.max(1,Math.round(flat*mult));
-  const cc=G.crit+(tagN('chirurgie')>=5?.15:0);
-  const krit=luck(cc);
-  if(krit)d=Math.round(d*(G.critMult+(tagN('chirurgie')>=5?.5:0)));
+  const cc=G.crit+(tagN('chirurgie')>=5?.15:0)+kritBonus(G.q?.d);
+  let krit=luck(cc);
+  // garantierter Krit in festem Rhythmus
+  for(const it of G.items)for(const e of it.e){
+    if(e.op!=='force_crit')continue;
+    const n=e.condition?.every_nth_question;
+    if(n&&((G.fragenGesamt||0)+1)%n===0)krit=true;
+  }
+  if(krit){
+    d=Math.round(d*(G.critMult+(tagN('chirurgie')>=5?.5:0)));
+    for(const it of G.items)for(const e of it.e)
+      if(e.hook==='onCrit'&&e.op==='damage_add')d+=e.value;
+  }
   return{d,krit};
 }
 function verlust(){
@@ -215,7 +287,7 @@ const monHP=()=>{const L=G.level;return L<=2?15:L<=4?25:L<=6?35:L<=8?45:55;};
 function kampf(){
   const m=monHP();
   G.mon={n:MONSTER[(Math.random()*MONSTER.length)|0],hp:m,max:m};
-  G.wrongFight=false;G.qi=0;naechsteFrage();S='fight';
+  G.wrongFight=false;G.qi=0;G.stack=0;naechsteFrage();S='fight';
 }
 function naechsteFrage(){
   const q=frage();G.q=q;G.seen.push(q.id);
@@ -224,15 +296,43 @@ function naechsteFrage(){
   const pool=[...falsch];
   for(let i=0;i<n&&pool.length>1;i++)weg.push(pool.splice((Math.random()*pool.length)|0,1)[0]);
   G.weg=weg;G.antwort=null;G.wette=false;
+  G.fragenGesamt=(G.fragenGesamt||0)+1;
+  // Themenhinweis
+  G.tipp=null;
+  for(const it of G.items)for(const e of it.e){
+    if(e.hook!=='onQuestionStart'||e.op!=='hint')continue;
+    const c=e.condition||{};
+    if(c.chance!=null&&!luck(c.chance))continue;
+    G.tipp=(q.t&&q.t.length)?q.t.join(', '):q.f;
+  }
+  // Frage loest sich von selbst
+  G.auto=false;
+  for(const it of G.items)for(const e of it.e){
+    if(e.hook!=='onQuestionStart'||e.op!=='auto_resolve_correct')continue;
+    if(luck(e.condition?.chance??0))G.auto=it.n;
+  }
 }
 function loot(){
   const n=4+(perk('opt')?1:0)+(G.items.some(i=>i.e.some(e=>e.op==='item_choices_add'))?1:0);
   const hab=G.items.map(i=>i.id),aus=G.items.flatMap(i=>i.ex||[]);
   const pool=D.items.filter(i=>!hab.includes(i.id)&&!aus.includes(i.id));
   const w={common:60,uncommon:30,rare:10},out=[];
+  // Seltenheitsaufwertung durch Items
+  let auf=0;
+  for(const it of G.items)for(const e of it.e)
+    if(e.op==='rarity_upgrade')auf=Math.max(auf,e.condition?.chance??0);
+  const hoeher={common:'uncommon',uncommon:'rare',rare:'rare'};
   while(out.length<n&&pool.length){
-    let x=Math.random()*pool.reduce((a,i)=>a+w[i.r],0);
-    for(let k=0;k<pool.length;k++){x-=w[pool[k].r];if(x<=0){out.push(pool.splice(k,1)[0]);break;}}
+    let x=Math.random()*pool.reduce((a,i)=>a+w[i.r],0), k0=-1;
+    for(let k=0;k<pool.length;k++){x-=w[pool[k].r];if(x<=0){k0=k;break;}}
+    if(k0<0)k0=0;
+    let gew=pool[k0];
+    if(auf&&Math.random()<auf){
+      const ziel=hoeher[gew.r];
+      const bess=pool.filter(i=>i.r===ziel&&i!==gew);
+      if(bess.length)gew=bess[(Math.random()*bess.length)|0];
+    }
+    out.push(gew); pool.splice(pool.indexOf(gew),1);
   }
   return out;
 }
@@ -286,12 +386,13 @@ function render(){
     if(S==='fight'&&!G.mon)S='nav';
     if(S==='drop'&&!G.drop)S='nav';
     if(S==='loot'&&!G.loot)S='nav';
-  } else if(S!=='start'&&S!=='shop') S='start';
+  } else if(!['start','shop','export','importform','importpruef','reset'].includes(S)) S='start';
   if(S==='start'){
     h=`<h1>Das Labyrinth<br>des Körpers</h1>
        <p class="klein">Ein Roguelite über Leitungsbahnen</p>
        ${box(monsterSVG(),'mon')}
-       ${btn('Neuen Run starten','start')}
+       ${gespeichert?btn(`Run fortsetzen <span class="klein">· Level ${gespeichert.G.level}, ${Math.max(0,gespeichert.G.hp)} HP, ${gespeichert.G.items.length} Items</span>`,'weiterrun'):''}
+       ${btn(gespeichert?'Neuen Run starten <span class="klein">· verwirft den gespeicherten</span>':'Neuen Run starten','start')}
        ${btn(`Laden &amp; Perks &nbsp;·&nbsp; ${meta.coins} Coins`,'shop')}
        ${meta.runs?box(`<div class="zeile"><span class="klein">Runs</span><span class="mono">${meta.runs}</span></div>
          <div class="zeile"><span class="klein">Bestes Level</span><span class="mono">${meta.best}</span></div>
@@ -314,15 +415,26 @@ function render(){
       +`</div>`
       +G.items.map((it,k)=>it._ch>0&&G.zeige==null&&d>0
           ? btn(`${esc(it.n)} benutzen <span class="klein">· ${it._ch} ${it._ch===1?'Ladung':'Ladungen'}</span>`,'use',String(k)) : '').join('')
-      +btn(`Inventar <span class="klein">· ${G.items.length} ${G.items.length===1?'Item':'Items'}</span>`,'inv');
+      +btn(`Inventar <span class="klein">· ${G.items.length} ${G.items.length===1?'Item':'Items'}</span>`,'inv')
+      +btn(G.gesichert?'Gespeichert <span class="klein">· Stand gesichert</span>':'Speichern und pausieren','sichern');
   }
   else if(S==='fight'){
     const q=G.q,mp=G.mon.hp/G.mon.max*100;
     const opts=['A','B','C','D','E'].filter(k=>q.o[k]&&!G.weg.includes(k));
-    h=kopf()+box(`${monsterSVG()}<div class="zeile"><span>${esc(G.mon.n)}</span><span class="mono">${Math.max(0,G.mon.hp)} HP</span></div>
+    const sicht=G.items.some(i=>i.e.some(e=>e.op==='reveal_target_hp'));
+    h=kopf()+box(`${monsterSVG()}<div class="zeile"><span>${esc(G.mon.n)}</span><span class="mono">${
+      sicht?`${Math.max(0,G.mon.hp)} / ${G.mon.max} HP`:'? HP'}</span></div>
       <div class="balken rot"><i style="width:${Math.max(0,mp)}%"></i></div>`,'m'+G.mon.n)
-      +box(`<p class="klein">${esc(q.f)}</p><p>${esc(q.s)}</p>`,'q'+q.id);
-    if(G.antwort===null){
+      +box(`<div class="zeile"><span class="klein">${esc(q.f)}</span>
+        <span class="klein">${'●'.repeat(q.d||3)}${'○'.repeat(Math.max(0,5-(q.d||3)))}${
+          kritBonus(q.d)>0?` · +${Math.round(kritBonus(q.d)*100)} % Krit`:''}</span></div>
+        <p>${esc(q.s)}</p>`,'q'+q.id);
+    if(G.tipp) h+=box(`<p class="klein">Hinweis: ${esc(G.tipp)}</p>`,'tipp','duenn');
+    if(G.auto&&G.antwort===null){
+      h+=box(`<p class="richtig">${esc(G.auto)}: Die Frage löst sich von selbst — voller Schaden ohne Antwort.</p>`,'auto','duenn')
+        +btn('Durchziehen','autoloesen');
+    }
+    else if(G.antwort===null){
       h+=opts.map(k=>btn(`${k}) ${esc(q.o[k])}`,'ans',k)).join('');
       if(hatWette()) h+= G.wette
         ? box(`<p class="richtig">Wette läuft: doppelter Schaden, doppelter HP-Verlust.</p>`,'wette1','duenn')
@@ -358,6 +470,52 @@ function render(){
         <div class="chips">${i.g.map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div>`,'takedrop',String(k))).join('')
      +btn('Liegen lassen','takedrop','-1');
   }
+  else if(S==='export'){
+    const code=codeAus(meta);
+    h=`<h1>Fortschritt sichern</h1>
+      ${box(`<p class="klein">Kopiere diesen Code in deine Notizen. Damit stellst du Coins, Perks und
+        deinen Lernstand auf jedem Gerät wieder her.</p>
+        <textarea id="code" class="code" readonly rows="5">${esc(code)}</textarea>
+        <div class="zeile klein"><span>${meta.coins} Coins · ${meta.runs} Runs</span>
+        <span>${Object.keys(meta.srs).length} Fragen im Lernstand</span></div>`,'exp')}
+      ${hinweis?box(`<p class="richtig">${esc(hinweis)}</p>`,'hw','duenn'):''}
+      ${btn('In die Zwischenablage kopieren','kopieren')}
+      ${btn('Zurück','shop')}`;
+  }
+  else if(S==='importform'){
+    h=`<h1>Fortschritt einspielen</h1>
+      ${box(`<p class="klein">Füge hier den gesicherten Code ein. Er beginnt mit LB1-.</p>
+        <textarea id="code" class="code" rows="5" placeholder="LB1-..."></textarea>`,'imp')}
+      ${hinweis?box(`<p class="falsch">${esc(hinweis)}</p>`,'hwi','duenn'):''}
+      ${btn('Code prüfen','pruefen')}
+      ${btn('Zurück','shop')}`;
+  }
+  else if(S==='importpruef'){
+    const e=entwurf;
+    h=`<h1>Code geprüft</h1>
+      ${box(`<p class="klein">Der Code enthält:</p>
+        <div class="zeile"><span>Coins</span><span class="mono">${e.coins}</span></div>
+        <div class="zeile"><span>Runs</span><span class="mono">${e.runs}</span></div>
+        <div class="zeile"><span>Bestes Level</span><span class="mono">${e.best}</span></div>
+        <div class="zeile"><span>Gekaufte Perks</span><span class="mono">${Object.values(e.perks).reduce((a,b)=>a+b,0)}</span></div>
+        <div class="zeile"><span>Fragen im Lernstand</span><span class="mono">${Object.keys(e.srs).length}</span></div>`,'ip')}
+      ${box(`<p class="falsch">Das Einspielen ersetzt deinen jetzigen Fortschritt
+        (${meta.coins} Coins, ${meta.runs} Runs, ${Object.keys(meta.srs).length} Fragen) vollständig.</p>`,'ipw','duenn')}
+      ${btn('Ja, ersetzen','importuebernehmen')}
+      ${btn('Abbrechen','shop')}`;
+  }
+  else if(S==='reset'){
+    h=`<h1>Fortschritt löschen</h1>
+      ${box(`<p class="falsch">Das löscht endgültig und lässt sich nicht rückgängig machen:</p>
+        <div class="zeile"><span>Coins</span><span class="mono">${meta.coins}</span></div>
+        <div class="zeile"><span>Gekaufte Perks</span><span class="mono">${Object.values(meta.perks).reduce((a,b)=>a+b,0)}</span></div>
+        <div class="zeile"><span>Runs</span><span class="mono">${meta.runs}</span></div>
+        <div class="zeile"><span>Fragen im Lernstand</span><span class="mono">${Object.keys(meta.srs).length}</span></div>`,'rs')}
+      ${box(`<p class="klein">Sichere vorher lieber deinen Code — dann kannst du jederzeit zurück.</p>`,'rs2','duenn')}
+      ${btn('Erst sichern','export')}
+      ${btn('Ja, alles löschen','resetja')}
+      ${btn('Abbrechen','shop')}`;
+  }
   else if(S==='end'){
     h=`<h1>${G.dead?'Run beendet':'Geschafft'}</h1>
       ${box(`<div class="zeile"><span>Erreichtes Level</span><span class="mono">${G.level}</span></div>
@@ -373,6 +531,9 @@ function render(){
         return btn(`${esc(p.n)} <span class="klein">${s}/${p.max}</span><br><span class="klein">${esc(p.x)} · ${p.c} Coins</span>`,
           'buy',p.id,(voll||teuer)?'disabled':'');}).join('')}
       ${btn('Zurück','home')}
+      <hr>
+      ${btn('Fortschritt sichern <span class="klein">· Code zum Kopieren</span>','export')}
+      ${btn('Fortschritt einspielen <span class="klein">· Code von einem anderen Gerät</span>','importform')}
       ${btn('Fortschritt löschen','reset')}`;
   }
   app.innerHTML=`<div class="fade">${h}</div>`;
@@ -445,14 +606,52 @@ function rel(e){
 app.addEventListener('click',async ev=>{
   const b=ev.target.closest('button[data-act]');if(!b||b.disabled)return;
   const a=b.dataset.act,arg=b.dataset.arg;
-  if(a==='start'){newRun();}
+  if(a==='start'){loescheRun();gespeichert=null;newRun();}
+  else if(a==='weiterrun'){
+    if(gespeichert){G=gespeichert.G;S=gespeichert.S;gespeichert=null;
+      if(S==='inv')S='nav'; G.msg='Run fortgesetzt.'; G.zeige=null;}
+  }
+  else if(a==='sichern'){
+    G.gesichert=speichereRun();
+    G.msg=G.gesichert?'Stand gesichert. Du kannst die App jetzt gefahrlos schließen.'
+                     :'Speichern nicht möglich — der Browser lässt keinen Speicher zu.';
+    gespeichert=await ladeRun();
+  }
   else if(a==='home'){S=(G&&G.gain!=null)?'end':'start';}
   else if(a==='shop'){S='shop';}
-  else if(a==='reset'){meta={coins:0,perks:{},srs:{},enc:0,runs:0,best:0};await saveMeta();S='start';}
+  else if(a==='reset'){hinweis='';S='reset';}
+  else if(a==='resetja'){
+    meta={coins:0,perks:{},srs:{},enc:0,runs:0,best:0};
+    loescheRun(); gespeichert=null; G=null;
+    await saveMeta(); S='start';
+  }
+  else if(a==='export'){hinweis='';S='export';}
+  else if(a==='importform'){hinweis='';entwurf=null;S='importform';}
+  else if(a==='kopieren'){
+    const code=codeAus(meta);
+    let ok=false;
+    try{ await navigator.clipboard.writeText(code); ok=true; }catch(e){}
+    if(!ok){ const f=document.getElementById('code');
+      if(f){ f.focus(); f.setSelectionRange(0,f.value.length);
+             try{ ok=document.execCommand('copy'); }catch(e){} } }
+    hinweis = ok ? 'Code kopiert. Sichere ihn jetzt in deinen Notizen.'
+                 : 'Kopieren nicht möglich — markiere den Code oben und kopiere ihn von Hand.';
+  }
+  else if(a==='pruefen'){
+    const f=document.getElementById('code');
+    try{ entwurf=codeEin(f?f.value:''); hinweis=''; S='importpruef'; }
+    catch(err){ hinweis=err.message; entwurf=null; }
+  }
+  else if(a==='importuebernehmen'){
+    if(entwurf){ meta={...meta,...entwurf}; entwurf=null;
+      loescheRun(); gespeichert=null; G=null;
+      await saveMeta(); hinweis=''; S='start'; }
+  }
   else if(a==='buy'){const p=PERKS.find(x=>x.id===arg);
     if(p&&meta.coins>=p.c&&perk(p.id)<p.max){meta.coins-=p.c;meta.perks[p.id]=perk(p.id)+1;await saveMeta();}}
   else if(a==='go'){ await laufe(+arg); gehe(+arg); }
   else if(a==='ans'){antworte(arg);}
+  else if(a==='autoloesen'){G.auto=false;antworte(G.q.c);}
   else if(a==='weiter'){weiter();}
   else if(a==='take'){equip(G.loot[+arg]);naechstesLevel();}
   else if(a==='inv'){G.zurueck=S;S='inv';}
@@ -465,6 +664,8 @@ app.addEventListener('click',async ev=>{
     if(G.node===G.ziel)levelGeschafft();
   }
   else if(a==='reroll'){if(G.rerolls>0){G.rerolls--;G.loot=loot();}}
+  if(G&&LAUFEND.includes(S)){ if(a!=='sichern')G.gesichert=false; speichereRun(); }
+  if(S==='end'||S==='start'){ if(a!=='weiterrun')loescheRun(); }
   render();
 });
 function benutze(k){
@@ -511,13 +712,24 @@ function antworte(k){
   G.qi++;const q=G.q,ok=k===q.c;G.antwort=k;bewerte(q.id,ok);
   if(ok){
     G.corrects++;G.streak++;G.lastWrong=false;
-    const {d,krit}=schaden();G.mon.hp-=d;G.kills+= (G.mon.hp<=0?1:0);
+    const {d,krit}=schaden();G.stack=(G.stack||0)+1;G.mon.hp-=d;G.kills+= (G.mon.hp<=0?1:0);
     G.feedback=`${G.wette?'Wette gewonnen. ':''}${krit?'Kritischer Treffer! ':''}${d} Schaden.`;
     for(const it of G.items)for(const e of it.e)
       if(e.hook==='onCorrect'&&e.op==='heal'&&(G.corrects%(e.condition?.every_nth_correct||1)===0))
         G.hp=Math.min(G.hpMax,G.hp+e.value);
   }else{
-    G.streak=0;G.lastWrong=true;
+    G.streak=0;G.lastWrong=true;G.stack=0;
+    // Erster Fehler pro Kampf kann in einen Teiltreffer umgewandelt werden
+    let teil=null;
+    if(!G.wrongFight)for(const it of G.items)for(const e of it.e)
+      if(e.hook==='onWrong'&&e.op==='convert_to_partial_hit'&&e.condition?.first_wrong_in_fight)teil=[e.value,it.n];
+    if(teil){
+      G.wrongFight=true;
+      const {d}=schaden();const halb=Math.max(1,Math.round(d*teil[0]));
+      G.mon.hp-=halb;G.kills+=(G.mon.hp<=0?1:0);
+      G.feedback=`${teil[1]} rettet dich: kein HP-Verlust, ${halb} Schaden.`;
+      saveMeta();return;
+    }
     const l=verlust();G.wrongFight=true;G.hp-=l;G.feedback=`${G.wette?'Wette verloren. ':''}−${l} HP.`;
     if(G.hp<=0){
       const rev=G.items.find(i=>i.e.some(e=>e.hook==='onDeath'&&e.op==='revive'&&!i._used));
@@ -531,6 +743,10 @@ function weiter(){
   if(G.hp<=0){ende(true);return;}
   if(G.mon.hp<=0){
     const name=G.mon.n; G.mon=null; G.msg=name+' besiegt.';
+    for(const it of G.items)for(const e of it.e)
+      if(e.hook==='onFightEnd'&&e.op==='reroll_add'&&luck(e.condition?.chance??1)){
+        G.rerolls+=e.value; G.msg+=' '+it.n+' schenkt dir einen Reroll.';
+      }
     let p=0.30;
     for(const it of G.items)for(const e of it.e)
       if(e.hook==='onLoot'&&e.op==='extra_drop')p+=e.condition?.chance??0.2;
@@ -553,8 +769,18 @@ function ende(tot){
   c=Math.max(0,Math.round(c)+(G.coinAdd||0));
   G.gain=c;meta.coins+=c;meta.runs++;meta.best=Math.max(meta.best,G.level);
   S='end';                                   // sofort, nicht erst nach dem Speichern
+  loescheRun(); gespeichert=null;
   saveMeta();
 }
 
+/* Sichert, sobald die App in den Hintergrund geht oder geschlossen wird. */
+for(const ev of ['visibilitychange','pagehide','freeze']){
+  addEventListener(ev,()=>{ if(document.visibilityState!=='visible'||ev!=='visibilitychange') speichereRun(); });
+}
+
 /* ---------- Start ---------- */
-(async()=>{const m=await loadMeta();if(m)meta={...meta,...m};render();})();
+(async()=>{
+  const m=await loadMeta(); if(m)meta={...meta,...m};
+  gespeichert=await ladeRun();
+  render();
+})();
