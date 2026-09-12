@@ -1,5 +1,5 @@
 /* Leitungsbahnen — Prototyp */
-const BUILD='12';
+const BUILD='17';
 const D=window.GAMEDATA;
 const A={},R={};
 for(const e of D.edges){
@@ -129,6 +129,7 @@ function codeEin(txt){
           enc:Math.max(0,k.e|0),srs};
 }
 let startMonster='zweifel';
+let optVorher='start';
 let gespeichert=null;
 let entwurf=null;      // eingelesener, noch nicht uebernommener Fortschritt
 let hinweis='';        // Rueckmeldung an den Nutzer                                // Vorschau fuer das Hauptmenue
@@ -140,7 +141,17 @@ const PERKS=[
  {id:'crit',n:'Ruhige Hand',x:'+5 % Krit-Chance',c:32,max:2},
  {id:'srs',n:'Wiederholungsdrill',x:'Fehlerfragen kommen öfter',c:45,max:1},
  {id:'opt',n:'Semesterferien',x:'5 Item-Optionen statt 4',c:60,max:1}];
-let meta={coins:0,perks:{},srs:{},enc:0,runs:0,best:0};
+const OPT_STD={schrift:'hand',groesse:'normal',eink:false};
+let meta={coins:0,perks:{},srs:{},enc:0,runs:0,best:0,opt:{...OPT_STD}};
+function opt(){ meta.opt={...OPT_STD,...(meta.opt||{})}; return meta.opt; }
+function setzeOptionen(){
+  const o=opt(), b=document.body; if(!b)return;
+  b.classList.toggle('klar', o.schrift==='klar');
+  b.classList.toggle('fs-gross', o.groesse==='gross');
+  b.classList.toggle('fs-sehrgross', o.groesse==='sehrgross');
+  b.classList.toggle('eink', !!o.eink);
+}
+const eink=()=>!!opt().eink;
 const perk=id=>meta.perks[id]||0;
 
 /* ---------- Run ---------- */
@@ -156,12 +167,24 @@ function newRun(){
 }
 function quest(){
   const ids=Object.keys(D.nodes);
+  const minH=G.endlos?8:3, maxH=G.endlos?16:6;
+  for(let t=0;t<1500;t++){
+    const ziel=ids[(Math.random()*ids.length)|0];
+    if(!R[ziel])continue;
+    const dist={[ziel]:0},q=[ziel];
+    while(q.length){const c=q.shift();for(const e of(R[c]||[]))if(!(e.f in dist)){dist[e.f]=dist[c]+1;q.push(e.f);}}
+    const cand=Object.keys(dist).filter(k=>dist[k]>=minH&&dist[k]<=maxH&&(A[k]||[]).length>1);
+    if(!cand.length)continue;
+    G.ziel=ziel;G.dist=dist;G.node=cand[(Math.random()*cand.length)|0];G.start=G.node;G.hops=dist[G.node];
+    return;
+  }
+  // Notfallrueckfall, falls im gewuenschten Fenster nichts gefunden wurde
   for(let t=0;t<600;t++){
     const ziel=ids[(Math.random()*ids.length)|0];
     if(!R[ziel])continue;
     const dist={[ziel]:0},q=[ziel];
     while(q.length){const c=q.shift();for(const e of(R[c]||[]))if(!(e.f in dist)){dist[e.f]=dist[c]+1;q.push(e.f);}}
-    const cand=Object.keys(dist).filter(k=>dist[k]>=3&&dist[k]<=6&&(A[k]||[]).length>1);
+    const cand=Object.keys(dist).filter(k=>dist[k]>=Math.max(3,minH-3)&&(A[k]||[]).length>1);
     if(!cand.length)continue;
     G.ziel=ziel;G.dist=dist;G.node=cand[(Math.random()*cand.length)|0];G.start=G.node;G.hops=dist[G.node];
     return;
@@ -267,23 +290,48 @@ function versteckt(q){
 }
 /* Fragen + Wiederholung */
 const STEPS=[3,8,20,45,100];
+const MEISTERN=4;          // so oft in Folge richtig, dann pausiert die Frage
+const MIN_AKTIV=20;        // so viele Fragen bleiben mindestens im Umlauf
+/* Sind fast alle Fragen gemeistert, kehren die am laengsten pausierenden zurueck.
+   Ohne diesen Rueckholmechanismus liefe der Fragenpool irgendwann leer. */
+function aktivePool(){
+  let aktiv=D.questions.filter(q=>!(meta.srs[q.id]||{}).ruhe);
+  if(aktiv.length>=MIN_AKTIV)return aktiv;
+  const ruhend=D.questions.filter(q=>(meta.srs[q.id]||{}).ruhe)
+    .sort((a,b)=>(meta.srs[a.id].ruhe)-(meta.srs[b.id].ruhe));
+  for(const q of ruhend){
+    if(aktiv.length>=MIN_AKTIV+10)break;
+    const st=meta.srs[q.id]; st.ruhe=null; st.r=0; st.n=Math.max(0,(st.n||0)-1);
+    st.due=meta.enc; aktiv.push(q);
+  }
+  return aktiv;
+}
+const gemeistertAnzahl=()=>D.questions.filter(q=>(meta.srs[q.id]||{}).ruhe).length;
 function frage(){
+  const pool0=aktivePool();
   const frei=q=>!G.seen.includes(q.id);
-  const faellig=D.questions.filter(q=>frei(q)&&meta.srs[q.id]&&meta.srs[q.id].due<=meta.enc);
-  const neu=D.questions.filter(q=>frei(q)&&!meta.srs[q.id]);
-  const lokal=D.questions.filter(q=>frei(q)&&q.v.includes(G.node));
-  const rest=D.questions.filter(frei);
+  const faellig=pool0.filter(q=>frei(q)&&meta.srs[q.id]&&meta.srs[q.id].due<=meta.enc);
+  const neu=pool0.filter(q=>frei(q)&&!meta.srs[q.id]);
+  const lokal=pool0.filter(q=>frei(q)&&q.v.includes(G.node));
+  const rest=pool0.filter(frei);
   const r=Math.random(),pD=perk('srs')?.75:.60;
   let pool = (lokal.length&&r<.25)?lokal : (faellig.length&&r<pD)?faellig
            : (neu.length&&r<pD+.25)?neu : (rest.length?rest:D.questions);
+  if(!pool.length)pool=pool0.length?pool0:D.questions;
   return pool[(Math.random()*pool.length)|0];
 }
 function bewerte(id,ok){
   meta.enc++;
-  const s=meta.srs[id]||{n:0,w:0};
+  const s=meta.srs[id]||{n:0,w:0,r:0};
   s.n=ok?Math.min(s.n+1,STEPS.length-1):0;
   s.due=meta.enc+STEPS[s.n];
-  if(!ok)s.w++;
+  if(ok){
+    s.r=(s.r||0)+1;
+    if(s.r>=MEISTERN&&!s.ruhe){ s.ruhe=meta.enc; G.neuGemeistert=(G.neuGemeistert||0)+1; G.meisterJetzt=true; }
+  }else{
+    s.w=(s.w||0)+1; s.r=0;
+    if(s.ruhe)s.ruhe=null;                       // Fehler holt die Frage zurueck
+  }
   meta.srs[id]=s;
 }
 const MONSTER=[
@@ -368,9 +416,13 @@ const MONSTER=[
   <path d="M25 46 q5 4 10 0 M54 39 q6 5 12 0 M85 46 q5 4 10 0"/>
   <path d="M18 96 h84 v-26 h-84Z M18 82 h84"/>`,hpMult:1.5}
 ];
+const SELTEN={common:'gewöhnlich',uncommon:'ungewöhnlich',rare:'selten'};
+const rk=i=>'r-'+(i.r||'common');                 // CSS-Klasse nach Seltenheit
+const rlabel=i=>SELTEN[i.r]||i.r;
 const monById=id=>MONSTER.find(m=>m.id===id)||MONSTER[0];
 const monStufe=L=>L<=3?1:L<=6?2:L<=9?3:4;
-const monHP=()=>{const L=G.level;return L<=2?15:L<=4?25:L<=6?35:L<=8?45:55;};
+const monHP=()=>{const L=G.level;
+  return L<=2?15:L<=4?25:L<=6?35:L<=8?45:L<=10?55:55+(L-10)*7;};
 function finale(){
   const w=MONSTER.find(m=>m.id==='kolloquium');
   G.mon={id:w.id,n:w.n,hp:w.serie,max:w.serie,serie:w.serie};
@@ -378,7 +430,9 @@ function finale(){
 }
 function kampf(){
   const stufe=monStufe(G.level);
-  let pool=MONSTER.filter(m=>m.t===stufe);
+  // Im Endlos-Modus mischen sich ab Level 11 die schweren Gegner
+  let pool=G.level>10 ? MONSTER.filter(m=>m.t===3||m.t===4)
+                      : MONSTER.filter(m=>m.t===stufe);
   if(!pool.length)pool=MONSTER.filter(m=>m.t<=stufe);
   if(!pool.length)pool=MONSTER;
   const w=pool[(Math.random()*pool.length)|0];
@@ -388,11 +442,18 @@ function kampf(){
 }
 function naechsteFrage(){
   const q=frage();G.q=q;G.seen.push(q.id);
-  const falsch=['A','B','C','D','E'].filter(k=>k!==q.c&&q.o[k]);
+  // Die Optionen werden bei jeder Anzeige neu gemischt, damit nicht die
+  // Position der richtigen Antwort gelernt wird statt des Inhalts.
+  const texte=['A','B','C','D','E'].filter(k=>q.o[k]).map(k=>[k,q.o[k]]);
+  for(let i=texte.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[texte[i],texte[j]]=[texte[j],texte[i]];}
+  G.anz={}; G.korrekt=null;
+  texte.forEach(([alt,txt],i)=>{const neu=['A','B','C','D','E'][i];
+    G.anz[neu]=txt; if(alt===q.c)G.korrekt=neu;});
+  const falsch=Object.keys(G.anz).filter(k=>k!==G.korrekt);
   const n=versteckt(q),weg=[];
   const pool=[...falsch];
   for(let i=0;i<n&&pool.length>1;i++)weg.push(pool.splice((Math.random()*pool.length)|0,1)[0]);
-  G.weg=weg;G.antwort=null;G.wette=false;
+  G.weg=weg;G.antwort=null;G.wette=false;G.meisterJetzt=false;
   G.fragenGesamt=(G.fragenGesamt||0)+1;
   // Themenhinweis
   G.tipp=null;
@@ -445,7 +506,7 @@ function kopf(){
   const p=Math.max(0,G.hp)/G.hpMax*100;
   return box(`<div style="display:flex;gap:12px;align-items:flex-start">
     <div style="flex:1 1 auto;min-width:0">
-    <div class="zeile"><span>Level ${G.level}/10</span><span class="mono">${Math.max(0,G.hp)} / ${G.hpMax} HP</span></div>
+    <div class="zeile"><span>Level ${G.endlos?G.level+' · Endlos':G.level+'/10'}</span><span class="mono">${Math.max(0,G.hp)} / ${G.hpMax} HP</span></div>
     <div class="balken"><i style="width:${p}%"></i></div>
     <div class="klein">Bringe den Erythrozyten von <span class="lat">${esc(nm(G.start))}</span> nach <span class="lat">${esc(nm(G.ziel))}</span></div>
     ${G.items.length?`<div class="chips">${G.items.slice(0,4).map(i=>`<span class="chip">${esc(i.n)}</span>`).join('')}${G.items.length>4?`<span class="chip">+${G.items.length-4}</span>`:''}</div>`:''}
@@ -492,7 +553,7 @@ function render(){
     if(S==='fight'&&!G.mon)S='nav';
     if(S==='drop'&&!G.drop)S='nav';
     if(S==='loot'&&!G.loot)S='nav';
-  } else if(!['start','shop','export','importform','importpruef','reset'].includes(S)) S='start';
+  } else if(!['start','shop','export','importform','importpruef','reset','opt'].includes(S)) S='start';
   if(S==='start'){
     h=`<h1>Das Labyrinth<br>des Körpers</h1>
        <p class="klein">Ein Roguelite über Leitungsbahnen</p>
@@ -502,7 +563,9 @@ function render(){
        ${btn(`Laden &amp; Perks &nbsp;·&nbsp; ${meta.coins} Coins`,'shop')}
        ${meta.runs?box(`<div class="zeile"><span class="klein">Runs</span><span class="mono">${meta.runs}</span></div>
          <div class="zeile"><span class="klein">Bestes Level</span><span class="mono">${meta.best}</span></div>
-         <div class="zeile"><span class="klein">Fragen im Umlauf</span><span class="mono">${Object.keys(meta.srs).length}/${D.questions.length}</span></div>`,'stat','duenn'):''}
+         <div class="zeile"><span class="klein">Gemeistert</span><span class="mono">${gemeistertAnzahl()}/${D.questions.length}</span></div>
+         <div class="zeile"><span class="klein">Fragen begegnet</span><span class="mono">${Object.keys(meta.srs).length}/${D.questions.length}</span></div>
+         ${meta.bestEndlos?`<div class="zeile"><span class="klein">Bestes Endlos-Level</span><span class="mono">${meta.bestEndlos}</span></div>`:''}`,'stat','duenn'):''}
        <p class="hinweis">Fassung ${BUILD} · ${Object.keys(D.nodes).length} Gefäße · ${D.questions.length} Fragen · ${D.items.length} Items. Eigene Fragen, keine IMPP-Originale. Nicht von einer Fachperson gegengelesen — zum Üben, nicht als Beleg.</p>
        ${navigator.standalone===false?`<p class="hinweis">Zum Installieren: Teilen-Symbol antippen, dann „Zum Home-Bildschirm".</p>`:''}`;
   }
@@ -533,7 +596,7 @@ function render(){
   }
   else if(S==='fight'){
     const q=G.q,mp=G.mon.hp/G.mon.max*100;
-    const opts=['A','B','C','D','E'].filter(k=>q.o[k]&&!G.weg.includes(k));
+    const opts=Object.keys(G.anz||{}).filter(k=>!G.weg.includes(k));
     const sicht=G.items.some(i=>i.e.some(e=>e.op==='reveal_target_hp'));
     const serie=G.mon.serie;
     h=kopf()+box(`${monsterSVG(G.mon.id)}<div class="zeile"><span>${esc(G.mon.n)}</span><span class="mono">${
@@ -551,40 +614,43 @@ function render(){
         +btn('Durchziehen','autoloesen');
     }
     else if(G.antwort===null){
-      h+=opts.map(k=>btn(`${k}) ${esc(q.o[k])}`,'ans',k)).join('');
+      h+=opts.map(k=>btn(`${k}) ${esc(G.anz[k])}`,'ans',k)).join('');
       if(hatWette()) h+= G.wette
         ? box(`<p class="richtig">Wette läuft: doppelter Schaden, doppelter HP-Verlust.</p>`,'wette1','duenn')
         : btn(`Wetten <span class="klein">· doppelter Schaden bei richtig, doppelter HP-Verlust bei falsch</span>`,'wette');
       if(G.weg.length)h+=`<p class="hinweis">${G.weg.length} Falschantwort${G.weg.length>1?'en':''} durch ein Item entfernt.</p>`;
     }else{
-      const ok=G.antwort===q.c;
-      h+=btn(`Inventar <span class="klein">· ${G.items.length}</span>`,'inv')
-        +box(`<p class="${ok?'richtig':'falsch'}">${ok?'Richtig':'Falsch'} — ${q.c}) ${esc(q.o[q.c])}</p>
+      const ok=G.antwort===G.korrekt;
+      h+=(G.meisterJetzt?box(`<p class="richtig">Diese Frage sitzt — ${MEISTERN} mal in Folge richtig. Sie pausiert jetzt, damit neue nachrücken.</p>`,'meist','duenn'):'')
+        +btn(`Inventar <span class="klein">· ${G.items.length}</span>`,'inv')
+        +box(`<p class="${ok?'richtig':'falsch'}">${ok?'Richtig':'Falsch'} — ${G.korrekt}) ${esc(G.anz[G.korrekt])}</p>
         <p class="klein">${esc(q.e)}</p>${G.feedback?`<p class="klein">${G.feedback}</p>`:''}`,'fb'+q.id)
         +btn(G.mon.hp<=0?'Weiter':'Nächste Frage','weiter');
     }
   }
   else if(S==='loot'){
     h=kopf()+box(`<h2>Level ${G.level}</h2><p class="klein">Quest abgeschlossen. Wähle ein Item.</p>`,'lvl'+G.level)
-     +G.loot.map((i,k)=>btn(`${esc(i.n)} <span class="klein">· ${esc(i.r)}</span><br><span class="klein">${esc(i.x)}</span>
-        <div class="chips">${i.g.map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div>`,'take',String(k))).join('')
+     +G.loot.map((i,k)=>`<div class="box duenn ${rk(i)}" data-rough="take${k}"><button data-act="take" data-arg="${k}">
+        ${esc(i.n)} <span class="selten">· ${esc(rlabel(i))}</span><br><span class="klein">${esc(i.x)}</span>
+        <div class="chips">${i.g.map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div></button></div>`).join('')
      +btn(`Neu würfeln (${G.rerolls})`,'reroll','',G.rerolls>0?'':'disabled');
   }
   else if(S==='inv'){
     h=kopf()+`<h2>Inventar</h2>`
      +(G.items.length?G.items.map(i=>box(
-        `<div class="zeile"><span>${esc(i.n)}</span><span class="klein">${esc(i.r)}</span></div>
+        `<div class="zeile"><span>${esc(i.n)}</span><span class="selten">${esc(rlabel(i))}</span></div>
          <p class="klein">${esc(i.x)}</p>
          ${i._ch!=null?`<p class="klein">${i._ch>0?`${i._ch} ${i._ch===1?'Ladung':'Ladungen'} übrig`:'aufgebraucht'}</p>`:''}
-         <div class="chips">${i.g.map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div>`,'i'+i.id,'duenn')).join('')
+         <div class="chips">${i.g.map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div>`,'i'+i.id,'duenn '+rk(i))).join('')
         : box(`<p class="klein">Noch keine Items. Das erste gibt es nach der ersten Quest.</p>`,'leer','duenn'))
      +setUebersicht()
      +btn('Zurück','back');
   }
   else if(S==='drop'){
     h=kopf()+box(`<h2>Beute</h2><p class="klein">${esc(G.mon0||'Das Monster')} lässt etwas fallen.</p>`,'drop')
-     +G.drop.map((i,k)=>btn(`${esc(i.n)} <span class="klein">· ${esc(i.r)}</span><br><span class="klein">${esc(i.x)}</span>
-        <div class="chips">${i.g.map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div>`,'takedrop',String(k))).join('')
+     +G.drop.map((i,k)=>`<div class="box duenn ${rk(i)}" data-rough="drop${k}"><button data-act="takedrop" data-arg="${k}">
+        ${esc(i.n)} <span class="selten">· ${esc(rlabel(i))}</span><br><span class="klein">${esc(i.x)}</span>
+        <div class="chips">${i.g.map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div></button></div>`).join('')
      +btn('Liegen lassen','takedrop','-1');
   }
   else if(S==='export'){
@@ -633,17 +699,50 @@ function render(){
       ${btn('Ja, alles löschen','resetja')}
       ${btn('Abbrechen','shop')}`;
   }
+  else if(S==='wahl'){
+    h=`<h1>Kolloquium bestanden</h1>
+      ${box(`${monsterSVG('kolloquium')}<p class="richtig zentriert">Drei Fragen in Folge — Level 10 ist geschafft.</p>`,'wahl1')}
+      ${box(`<div class="zeile"><span>Coins bei Abbruch</span><span class="mono">+${(G.level-1)*2}</span></div>
+        <div class="zeile"><span>Verbliebene HP</span><span class="mono">${Math.max(0,G.hp)} / ${G.hpMax}</span></div>`,'wahl2','duenn')}
+      ${btn('Run beenden <span class="klein">· Coins sichern</span>','beenden')}
+      ${box(`<p class="klein">Im Endlos-Modus geht es bei Level 11 weiter. Jedes Level bringt weitere 2 Coins.
+        Dafür sind die Quests mindestens 8 Abzweigungen lang, es warten nur noch schwere Gegner —
+        und <span class="falsch">jeder Schritt, der dich dem Ziel nicht näher bringt, beendet den Run sofort</span>.
+        Es gibt an jeder Abzweigung mindestens einen richtigen Weg.</p>`,'wahl3','duenn')}
+      ${btn('In den Endlos-Modus <span class="klein">· kein Zurück</span>','endlos')}`;
+  }
+  else if(S==='opt'){
+    const o=opt();
+    const wahl=(feld,werte)=>`<div class="schalter">`+werte.map(([v,t])=>
+      `<button data-act="setopt" data-arg="${feld}:${v}" aria-pressed="${o[feld]===v?'true':'false'}">${t}</button>`).join('')+`</div>`;
+    h=`<h1>Einstellungen</h1>
+      ${box(`<p>Schriftart</p>
+        <p class="klein">Die Handschrift passt zum Zeichenblock, die klare Schrift liest sich bei langen Texten leichter.</p>
+        ${wahl('schrift',[['hand','Handschrift'],['klar','Klar lesbar']])}`,'o1')}
+      ${box(`<p>Schriftgröße</p>
+        <p class="klein">Skaliert die gesamte Oberfläche mit, nicht nur den Fließtext.</p>
+        ${wahl('groesse',[['normal','Normal'],['gross','Groß'],['sehrgross','Sehr groß']])}`,'o2')}
+      ${box(`<p>E-Ink-Modus</p>
+        <p class="klein">Schaltet alle Animationen ab, entfernt die Papierstruktur und zeichnet die Linien
+        kräftiger. Gedacht für E-Ink-Displays, hilft aber auch bei Bewegungsempfindlichkeit.</p>
+        ${wahl('eink',[[false,'Aus'],[true,'An']])}`,'o3')}
+      ${btn('Zurück','optzu')}`;
+  }
   else if(S==='end'){
     const quote=G.beantwortet?Math.round(G.corrects/G.beantwortet*100):0;
-    const titel=G.dead?'Run beendet':(G.finaleBestanden?'Kolloquium bestanden':'Geschafft');
+    const titel=G.dead?'Run beendet'
+      :(G.endlos?`Endlos-Modus · Level ${G.level}`
+      :(G.finaleBestanden?'Kolloquium bestanden':'Geschafft'));
     const setz=['chirurgie','notaufnahme','groessenwahn','unialltag','medimeister']
       .map(t=>[t,G.items.filter(i=>i.g.includes(t)).length]).filter(x=>x[1]>=3);
     h=`<h1>${titel}</h1>
-      ${G.finaleBestanden?box(`${monsterSVG('kolloquium')}<p class="richtig zentriert">Drei Fragen in Folge — der Run ist vollständig abgeschlossen.</p>`,'fin'):''}
+      ${G.abbruch?box(`<p class="falsch">${esc(G.abbruch)}</p>`,'abbr','duenn'):''}
+      ${G.finaleBestanden&&!G.endlos?box(`${monsterSVG('kolloquium')}<p class="richtig zentriert">Drei Fragen in Folge — der Run ist vollständig abgeschlossen.</p>`,'fin'):''}
       ${box(`<div class="zeile"><span>Erreichtes Level</span><span class="mono">${G.level}</span></div>
         <div class="zeile"><span>Besiegte Monster</span><span class="mono">${G.kills}</span></div>
         <div class="zeile"><span>Beantwortete Fragen</span><span class="mono">${G.beantwortet||0}</span></div>
         <div class="zeile"><span>Trefferquote</span><span class="mono">${quote} %</span></div>
+        ${G.neuGemeistert?`<div class="zeile"><span>Neu gemeistert</span><span class="mono">${G.neuGemeistert}</span></div>`:''}
         <div class="zeile"><span>Verbliebene HP</span><span class="mono">${Math.max(0,G.hp)} / ${G.hpMax}</span></div>`,'stat')}
       ${box(`<div class="zeile klein"><span>Grundbetrag${G.dead?' (halbiert)':''}</span><span class="mono">${G.gainBasis}</span></div>
         ${G.gainMult!==1?`<div class="zeile klein"><span>Item-Bonus</span><span class="mono">×${G.gainMult.toFixed(2)}</span></div>`:''}
@@ -652,10 +751,10 @@ function render(){
         <div class="zeile klein"><span>Gesamtbestand</span><span class="mono">${meta.coins}</span></div>`,'coins')}
       <h2 class="abstand">Deine Ausrüstung</h2>
       ${G.items.length?G.items.map(i=>box(
-         `<div class="zeile"><span>${esc(i.n)}</span><span class="klein">${esc(i.r)}</span></div>
+         `<div class="zeile"><span>${esc(i.n)}</span><span class="selten">${esc(rlabel(i))}</span></div>
           <p class="klein">${esc(i.x)}</p>
           ${i._ch!=null?`<p class="klein">${i._ch>0?`${i._ch} ${i._ch===1?'Ladung':'Ladungen'} übrig`:'aufgebraucht'}</p>`:''}
-          <div class="chips">${i.g.map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div>`,'e'+i.id,'duenn')).join('')
+          <div class="chips">${i.g.map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div>`,'e'+i.id,'duenn '+rk(i))).join('')
         : box(`<p class="klein">Dieser Run endete ohne Items.</p>`,'keine','duenn')}
       ${setz.length?box(`<p class="klein">Aktive Sammlungen</p>${setz.map(([t,n])=>
           `<div class="zeile"><span class="klein">${t}</span><span class="klein mono">${n} Items · ${n>=5?'5er-Bonus':'3er-Bonus'}</span></div>`).join('')}`,'setz','duenn'):''}
@@ -673,7 +772,7 @@ function render(){
       ${btn('Fortschritt einspielen <span class="klein">· Code von einem anderen Gerät</span>','importform')}
       ${btn('Fortschritt löschen','reset')}`;
   }
-  app.innerHTML=`<div class="fade">${h}</div>`;
+  app.innerHTML=`<div class="${eink()?'':'fade'}">${h}</div>`;
   frames();
   if(S==='nav')zeichneGang();
   window.scrollTo(0,0);
@@ -719,7 +818,7 @@ function zeichneGang(){
 function laufe(i){
   const g=document.getElementById('gang'), h=document.getElementById('held');
   if(!g||!h||!g.dataset.ys) return Promise.resolve();
-  if(matchMedia('(prefers-reduced-motion: reduce)').matches) return Promise.resolve();
+  if(eink()||matchMedia('(prefers-reduced-motion: reduce)').matches) return Promise.resolve();
   const ys=JSON.parse(g.dataset.ys), ziel=ys[i];
   if(ziel==null) return Promise.resolve();
   const oben=ziel-gangFigH()/2;
@@ -792,9 +891,21 @@ app.addEventListener('click',async ev=>{
     if(p&&meta.coins>=p.c&&perk(p.id)<p.max){meta.coins-=p.c;meta.perks[p.id]=perk(p.id)+1;await saveMeta();}}
   else if(a==='go'){ await laufe(+arg); gehe(+arg); }
   else if(a==='ans'){antworte(arg);}
-  else if(a==='autoloesen'){G.auto=false;antworte(G.q.c);}
+  else if(a==='autoloesen'){G.auto=false;antworte(G.korrekt);}
   else if(a==='weiter'){weiter();}
   else if(a==='take'){equip(G.loot[+arg]);naechstesLevel();}
+  else if(a==='beenden'){ende(false);}
+  else if(a==='endlos'){
+    G.endlos=true;G.level++;quest();G.msg='Endlos-Modus. Ab hier beendet jeder Umweg den Run.';
+    G.zeige=null;S='nav';
+  }
+  else if(a==='optauf'){optVorher=S;S='opt';}
+  else if(a==='optzu'){S=optVorher||'start'; if(!G&&!['start','shop'].includes(S))S='start';}
+  else if(a==='setopt'){
+    const [feld,wert]=arg.split(':');
+    opt()[feld]= wert==='true'?true : wert==='false'?false : wert;
+    setzeOptionen(); await saveMeta();
+  }
   else if(a==='inv'){G.zurueck=S;S='inv';}
   else if(a==='back'){S=G.zurueck||'nav';}
   else if(a==='wette'){G.wette=true;}
@@ -826,6 +937,14 @@ function gehe(i){
   if(!e){ if(S==='drop'){G.drop=null;S='nav';if(G.node===G.ziel)levelGeschafft();} return; }
   const alt=G.dist[G.node],neu=G.dist[e.t];
   G.msg='';
+  if(G.endlos&&(neu==null||(alt!=null&&neu>=alt))){
+    G.abbruch = neu==null
+      ? `Sackgasse an ${nm(e.t)} — im Endlos-Modus endet der Run damit.`
+      : (neu===alt
+         ? `${nm(e.t)} liegt genauso weit vom Ziel entfernt — im Endlos-Modus zählt das als Umweg.`
+         : `Umweg über ${nm(e.t)} — im Endlos-Modus endet der Run damit.`);
+    ende(false); render(); return;
+  }
   if(neu==null){
     G.hp-=3;G.msg=`Sackgasse. Von <span class="lat">${esc(nm(e.t))}</span> führt kein Weg zum Ziel — du kehrst um. −3 HP.`;
     if(G.hp<=0){ende(true);return;}
@@ -833,6 +952,7 @@ function gehe(i){
   }
   G.node=e.t;G.branches++;G.zeige=null;
   if(alt!=null&&neu>alt)G.msg='Umweg — das Ziel liegt jetzt weiter entfernt.';
+  else if(alt!=null&&neu===alt)G.msg='Seitwärts — die Entfernung zum Ziel bleibt gleich.';
   if(G.node===G.ziel){levelGeschafft();return;}
   if(G.branches>=G.nextFight){G.nextFight=G.branches+3+((Math.random()*4)|0);kampf();}
 }
@@ -845,15 +965,13 @@ function levelGeschafft(){
     if(e.op==='coins_add')G.coinAdd=Math.min((G.coinAdd||0)+e.value,e.cap??999);
   }
   if(tagN('notaufnahme')>=5)G.hp=Math.min(G.hpMax,G.hp+10);
-  if(G.level>=10){
-    if(!G.finaleBestanden){G.msg='';return finale();}
-    return ende(false);
-  }
+  if(G.level>=10&&!G.finaleBestanden){G.msg='';return finale();}
+  if(G.level>=10&&!G.endlos)return ende(false);
   G.loot=loot();S='loot';
 }
 function naechstesLevel(){G.level++;quest();G.msg='';G.zeige=null;S='nav';}
 function antworte(k){
-  G.qi++;const q=G.q,ok=k===q.c;G.antwort=k;bewerte(q.id,ok);G.beantwortet=(G.beantwortet||0)+1;
+  G.qi++;const q=G.q,ok=k===G.korrekt;G.antwort=k;bewerte(q.id,ok);G.beantwortet=(G.beantwortet||0)+1;
   if(ok){
     G.corrects++;G.streak++;G.lastWrong=false;
     if(G.mon.serie){
@@ -898,7 +1016,7 @@ function antworte(k){
 function weiter(){
   if(G.hp<=0){ende(true);return;}
   if(G.mon.hp<=0){
-    if(G.finale){G.finale=false;G.finaleBestanden=true;G.mon=null;return ende(false);}
+    if(G.finale){G.finale=false;G.finaleBestanden=true;G.mon=null;S='wahl';return;}
     const name=G.mon.n; G.mon=null; G.msg=name+' besiegt.';
     for(const it of G.items)for(const e of it.e)
       if(e.hook==='onFightEnd'&&e.op==='reroll_add'&&luck(e.condition?.chance??1)){
@@ -926,6 +1044,7 @@ function ende(tot){
     if(e.hook==='onRunEnd'&&e.op==='coins_mult')mult*=e.value;
   c*=mult;                                   // gilt auch, wenn der Run verloren geht
   c=Math.max(0,Math.round(c)+(G.coinAdd||0));
+  if(G.endlos)meta.bestEndlos=Math.max(meta.bestEndlos||0,G.level);
   G.gain=c; G.gainBasis=Math.round(tot?basis*0.5:basis); G.gainMult=mult; G.gainExtra=G.coinAdd||0;meta.coins+=c;meta.runs++;meta.best=Math.max(meta.best,G.level);
   S='end';                                   // sofort, nicht erst nach dem Speichern
   loescheRun(); gespeichert=null;
@@ -938,8 +1057,13 @@ for(const ev of ['visibilitychange','pagehide','freeze']){
 }
 
 /* ---------- Start ---------- */
+document.getElementById('opt')?.addEventListener('click',()=>{
+  if(S!=='opt'){optVorher=S;S='opt';render();}
+  else{S=optVorher||'start'; if(!G&&!['start','shop'].includes(S))S='start'; render();}
+});
 (async()=>{
   const m=await loadMeta(); if(m)meta={...meta,...m};
+  setzeOptionen();
   startMonster=MONSTER[(Math.random()*MONSTER.length)|0].id;
   gespeichert=await ladeRun();
   render();

@@ -10,13 +10,16 @@
   --kapillar:#8A4E6B;
   --kammer:#3F5470;
   --gruen:#3F6B45;
-  --schrift:"Bradley Hand","Chalkboard SE","Segoe Print","Comic Sans MS",cursive;
+  --schrift-hand:"Bradley Hand","Chalkboard SE","Segoe Print","Comic Sans MS",cursive;
+  --schrift-klar:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --schrift:var(--schrift-hand);
+  --fs:1;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%}
 body{
   background:var(--papier);color:var(--tinte);
-  font-family:var(--schrift);font-size:17px;line-height:1.45;
+  font-family:var(--schrift);font-size:calc(17px * var(--fs));line-height:1.5;
   overscroll-behavior:none;
 }
 #paper{position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5;
@@ -31,13 +34,13 @@ svg.rf path{fill:none;stroke:var(--tinte);stroke-width:1.7;stroke-linecap:round;
 .box{position:relative;padding:14px 16px;margin:12px 0}
 .box.duenn svg.rf path{stroke-width:1.2;opacity:.55}
 
-h1{font-size:34px;line-height:1.05;margin:6px 0 2px;font-weight:400;letter-spacing:.5px}
-h2{font-size:22px;margin:0 0 8px;font-weight:400}
+h1{font-size:2em;line-height:1.05;margin:6px 0 2px;font-weight:400;letter-spacing:.5px}
+h2{font-size:1.3em;margin:0 0 8px;font-weight:400}
 p{margin:6px 0}
-.klein{font-size:14px;color:#5d6f96}
+.klein{font-size:.82em;color:#5d6f96}
 .lat{font-style:italic}
 
-button{font-family:inherit;font-size:17px;color:var(--tinte);background:none;border:0;
+button{font-family:inherit;font-size:1em;color:var(--tinte);background:none;border:0;
   padding:13px 14px;margin:0;width:100%;text-align:left;position:relative;cursor:pointer;
   display:block;line-height:1.35}
 button:focus-visible{outline:2px dashed var(--tinte);outline-offset:3px}
@@ -50,7 +53,7 @@ button:active{transform:translateY(1px)}
 .balken i{position:absolute;inset:0 auto 0 0;background:var(--tinte);display:block}
 .balken.rot i{background:var(--rot)}
 .chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
-.chip{font-size:12.5px;border:1.2px solid var(--tinte-blass);border-radius:11px;padding:2px 8px;color:#4a5f8a}
+.chip{font-size:.74em;border:1.2px solid var(--tinte-blass);border-radius:11px;padding:2px 8px;color:#4a5f8a}
 
 .richtig{color:var(--gruen)}
 .falsch{color:var(--rot)}
@@ -58,7 +61,7 @@ button:active{transform:translateY(1px)}
 .zentriert{text-align:center}
 .abstand{margin-top:18px}
 hr{border:0;border-top:1.5px dashed rgba(43,74,139,.3);margin:16px 0}
-.hinweis{font-size:14px;color:#5d6f96;margin-top:10px}
+.hinweis{font-size:.82em;color:#5d6f96;margin-top:10px}
 @media (prefers-reduced-motion:no-preference){
   .fade{animation:f .22s ease-out}
   @keyframes f{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
@@ -73,7 +76,7 @@ hr{border:0;border-top:1.5px dashed rgba(43,74,139,.3);margin:16px 0}
 @media (prefers-reduced-motion:reduce){#held{transition:none !important}}
 
 /* Fortschrittscode zum Kopieren */
-.code{width:100%;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;
+.code{width:100%;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.8em;
   line-height:1.4;color:var(--tinte);background:rgba(43,74,139,.04);
   border:1.2px dashed rgba(43,74,139,.35);border-radius:4px;padding:8px;margin:8px 0;
   resize:vertical;word-break:break-all;-webkit-user-select:text;user-select:text}
@@ -86,6 +89,49 @@ hr{border:0;border-top:1.5px dashed rgba(43,74,139,.3);margin:16px 0}
 .t-portal{--tinte:var(--portal)}
 .t-kapillarbett{--tinte:var(--kapillar)}
 .t-kammer{--tinte:var(--kammer)}
-.legende{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px;font-size:12.5px}
+.legende{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px;font-size:.74em}
 .legende span{display:inline-flex;align-items:center;gap:4px;color:#5d6f96}
 .legende i{width:14px;height:3px;border-radius:2px;display:inline-block}
+
+/* Seltenheitsstufen: Rahmen und Schrift.
+   Common nutzt das Standardblau der Oberfläche, darüber die Fortnite-Leiter
+   ab Grün. Fortnites Blau für die oberste Stufe entfällt, weil es mit dem
+   Common-Blau kollidieren würde — deshalb Violett als nächste Sprosse. */
+:root{
+  --r-common:#2B4A8B;
+  --r-uncommon:#3B8C4A;
+  --r-rare:#7A4DA8;
+}
+.r-common{--tinte:var(--r-common)}
+.r-uncommon{--tinte:var(--r-uncommon)}
+.r-rare{--tinte:var(--r-rare)}
+.r-common .selten{color:var(--r-common)}
+.r-uncommon .selten{color:var(--r-uncommon)}
+.r-rare .selten{color:var(--r-rare)}
+.selten{font-size:.77em;letter-spacing:.3px;text-transform:lowercase}
+.r-rare .chip,.r-uncommon .chip,.r-common .chip{border-color:currentColor;opacity:.75}
+
+/* ---------- Einstellungen ---------- */
+body.klar{--schrift:var(--schrift-klar);letter-spacing:0}
+body.klar .lat{font-style:italic}
+body.fs-gross{--fs:1.15}
+body.fs-sehrgross{--fs:1.32}
+
+/* E-Ink: keine Bewegung, kein Papierrauschen, hoeherer Kontrast */
+body.eink #paper{display:none}
+body.eink .fade{animation:none !important}
+body.eink #held{transition:none !important}
+body.eink *{transition:none !important;animation:none !important}
+body.eink{--papier:#FFFFFF}
+body.eink svg.rf path,body.eink .gangsvg .wand{stroke-width:2;opacity:1}
+
+/* Knopf oben links */
+#opt{position:fixed;left:max(10px,env(safe-area-inset-left));
+  top:calc(env(safe-area-inset-top) + 10px);z-index:5;width:42px;height:42px;padding:0;
+  background:var(--papier);border-radius:50%;display:flex;align-items:center;justify-content:center}
+#opt svg{width:26px;height:26px}
+#app{padding-top:calc(env(safe-area-inset-top) + 58px)}
+.schalter{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.schalter button{width:auto;flex:1 1 auto;text-align:center;border:1.5px solid rgba(43,74,139,.3);
+  border-radius:6px;padding:9px 10px;font-size:.9em}
+.schalter button[aria-pressed="true"]{border-color:var(--tinte);border-width:2.5px;font-weight:700}
