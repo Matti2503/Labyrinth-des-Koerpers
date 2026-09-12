@@ -1,7 +1,7 @@
 /* Netzwerk zuerst, Cache nur als Rueckfallebene.
    Damit ist eine neue Fassung sofort sichtbar, sobald sie online liegt,
    und die App bleibt trotzdem offline lauffaehig. */
-const CACHE='leitungsbahnen-v20';
+const CACHE='leitungsbahnen-v22';
 const FILES=['./','./index.html','./style.css','./app.js','./gamedata.js',
              './manifest.webmanifest','./icon-192.png','./icon-512.png'];
 

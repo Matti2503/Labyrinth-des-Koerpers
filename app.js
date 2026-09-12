@@ -1,5 +1,5 @@
 /* Leitungsbahnen — Prototyp */
-const BUILD='20';
+const BUILD='22';
 const D=window.GAMEDATA;
 const A={},R={};
 for(const e of D.edges){
@@ -385,84 +385,67 @@ function bewerte(id,ok){
 const MONSTER=[
  // Stufe 1 — Level 1 bis 3
  {id:'zweifel',n:'Der Zweifel',t:1,p:`
-  <path d="M22 96 C10 60 16 20 60 14 C104 20 110 60 98 96 C84 88 76 100 60 92 C44 100 36 88 22 96Z"/>
-  <ellipse cx="60" cy="46" rx="20" ry="14"/><circle cx="60" cy="46" r="6" fill="var(--tinte)"/>
-  <path d="M44 74 q16 8 32 0"/>`},
+  <path d="M24 98 C12 62 18 20 60 14 C102 20 108 62 96 98 q-9 -7 -18 0 q-9 7 -18 0 q-9 -7 -18 0 q-9 7 -18 0 Z"/>
+  <ellipse cx="60" cy="46" rx="19" ry="14"/><circle cx="60" cy="46" r="5.5" fill="var(--tinte)"/><path d="M44 74 q8 -6 16 0 q8 6 16 0"/>
+  <path d="M40 28 q6 -7 13 -4 M80 28 q-6 -7 -13 -4"/>`},
  {id:'kreuzfrage',n:'Die Kreuzfrage',t:1,p:`
-  <path d="M38 26 L58 50 L80 26 M38 88 L58 62 L80 88"/>
-  <circle cx="59" cy="56" r="19"/>
-  <circle cx="52" cy="51" r="3" fill="var(--tinte)"/><circle cx="67" cy="51" r="3" fill="var(--tinte)"/>
-  <path d="M51 66 q8 7 17 0"/>
-  <path d="M36 24 l-11 -8 M82 24 l11 -8 M36 90 l-11 9 M82 90 l11 9"/>`},
+  <path d="M44 8 h32 v30 h30 v32 h-30 v30 h-32 v-30 h-30 v-32 h30 Z"/><circle cx="52" cy="48" r="3.4" fill="var(--tinte)"/>
+  <circle cx="68" cy="48" r="3.4" fill="var(--tinte)"/><path d="M51 62 q9 -6 18 0"/><path d="M46 40 l7 -4 M74 40 l-7 -4"/>`},
  {id:'schwarm',n:'Erythrozytenschwarm',t:1,p:`
-  <ellipse cx="38" cy="44" rx="17" ry="12"/><ellipse cx="38" cy="44" rx="6" ry="4"/>
-  <ellipse cx="80" cy="35" rx="14" ry="10"/><ellipse cx="80" cy="35" rx="5" ry="3.5"/>
-  <ellipse cx="60" cy="76" rx="19" ry="13"/><ellipse cx="60" cy="76" rx="7" ry="4.5"/>
-  <path d="M31 39 l4 3 M45 39 l-4 3 M53 71 l5 3 M67 71 l-5 3"/>`},
+  <ellipse cx="38" cy="44" rx="20" ry="14.0"/><circle cx="30.0" cy="38.8" r="2.3" fill="var(--tinte)"/>
+  <circle cx="46.0" cy="38.8" r="2.3" fill="var(--tinte)"/><path d="M30 48 q8 5 17 0"/><ellipse cx="86" cy="30" rx="15" ry="10.5"/>
+  <ellipse cx="86" cy="30" rx="5.4" ry="3.6"/><ellipse cx="68" cy="78" rx="21" ry="14.7"/><circle cx="59.6" cy="72.54" r="2.3" fill="var(--tinte)"/>
+  <circle cx="76.4" cy="72.54" r="2.3" fill="var(--tinte)"/><path d="M59 82 q9 5 18 0"/><path d="M10 42 h10 M12 52 h8 M106 28 h9"/>`},
  // Stufe 2 — Level 4 bis 6
  {id:'altklausur',n:'Der Altklausurgeist',t:2,p:`
   <path d="M28 98 V46 C28 24 43 12 60 12 C77 12 92 24 92 46 V98 l-8 -9 -8 9 -8 -9 -8 9 -8 -9 -8 9Z"/>
-  <circle cx="50" cy="44" r="4" fill="var(--tinte)"/><circle cx="72" cy="44" r="4" fill="var(--tinte)"/>
-  <path d="M51 63 q9 8 19 0"/>
-  <path d="M74 74 h18 v16 h-18Z M78 79 h10 M78 84 h10"/>`},
+  <circle cx="50" cy="44" r="3.6" fill="var(--tinte)"/><circle cx="72" cy="44" r="3.6" fill="var(--tinte)"/><path d="M49 62 q11 9 22 0"/>
+  <path d="M44 34 l8 4 M76 34 l-8 4"/><path d="M70 74 h22 v18 h-22Z M74 80 h14 M74 86 h10"/>`},
  {id:'nachtschicht',n:'Die Nachtschicht',t:2,p:`
-  <circle cx="54" cy="28" r="15"/>
-  <path d="M46 25 q5 -4 10 0 M60 25 q5 -4 9 0"/>
-  <path d="M48 33 q6 4 12 0"/>
-  <path d="M54 43 V78 M54 52 L36 62 M54 52 L74 60 M54 78 L44 100 M54 78 L66 100"/>
-  <path d="M76 58 h14 v12 h-14Z M90 61 h5 v5 h-5"/>
-  <path d="M80 52 q2 -6 0 -9 M86 52 q2 -6 0 -9"/>`},
+  <circle cx="46" cy="26" r="15"/><path d="M38 24 q5 4 9 0 M51 24 q5 4 9 0"/><path d="M40 33 q7 3 13 -1"/><path d="M39 38 l-2 6 M54 38 l2 6"/>
+  <path d="M46 41 v34 M46 53 q-13 5 -15 15 M46 53 q12 2 17 7"/><path d="M46 75 l-9 25 M46 75 l10 25"/><path d="M64 60 h20 v18 h-20 Z M84 64 h6 v8 h-6"/>
+  <path d="M69 56 q3 -7 0 -12 M78 56 q3 -7 0 -12"/>`},
  {id:'blackout',n:'Der Blackout',t:2,p:`
-  <path d="M22 76 q-8 -24 12 -29 q1 -21 25 -19 q19 -7 28 11 q21 1 18 21 q7 19 -14 23 H34 q-13 -2 -12 -7Z"/>
-  <path d="M34 46 q10 8 20 0 M62 44 q10 8 20 0 M40 60 q12 7 24 0"/>
-  <circle cx="48" cy="70" r="3.5" fill="var(--tinte)"/><circle cx="72" cy="68" r="3.5" fill="var(--tinte)"/>`},
+  
+  <path d="M98.3 58.0 Q98.3,58.0 95.4,66.5 Q92.5,75.0 88.0,83.6 Q83.5,92.1 73.9,92.9 Q64.3,93.6 55.0,94.7 Q45.7,95.7 38.4,89.7 Q31.0,83.7 28.2,75.1 Q25.3,66.6 23.2,57.5 Q21.1,48.4 27.2,41.4 Q33.4,34.4 39.7,27.8 Q46.0,21.2 55.2,21.8 Q64.3,22.4 72.4,25.4 Q80.5,28.3 87.6,34.0 Q94.8,39.7 96.5,48.9 Z"/>
+  <circle cx="48" cy="48" r="3.4" fill="var(--tinte)"/><circle cx="74" cy="48" r="3.4" fill="var(--tinte)"/><path d="M46 72 q14 -7 28 0"/>
+  <path d="M34 34 l10 8 M78 32 l10 8 M30 62 l8 6"/>`},
  // Stufe 3 — Level 7 bis 9
  {id:'pruefer',n:'Der Prüfer',t:3,p:`
-  <circle cx="58" cy="24" r="14"/>
-  <path d="M46 22 h10 M60 22 h10 M56 22 q2 3 4 0"/>
-  <circle cx="51" cy="22" r="5"/><circle cx="65" cy="22" r="5"/>
-  <path d="M52 32 h12"/>
-  <path d="M58 38 V82 M58 48 L38 58 M58 48 L80 54 M58 82 L48 102 M58 82 L70 102"/>
-  <path d="M30 54 h20 v22 h-20Z M34 60 h12 M34 66 h12 M34 72 h8"/>`},
+  <circle cx="58" cy="24" r="14"/><circle cx="51" cy="22" r="5.5"/><circle cx="65" cy="22" r="5.5"/><path d="M56.5 22 h3 M45.5 22 h-4 M70.5 22 h4"/>
+  <path d="M51 33 h14"/><path d="M58 38 V80 M58 48 L38 58 M58 48 L78 56 M58 80 L48 102 M58 80 L70 102"/>
+  <path d="M26 56 h22 v24 h-22 Z M30 62 h14 M30 68 h14 M30 74 h9"/><path d="M38 58 l-6 0"/>`},
  {id:'skript',n:'Das Skript',t:3,p:`
-  <path d="M24 40 h72 v50 h-72Z"/><path d="M28 34 h72 v50 M32 28 h72 v50"/>
-  <circle cx="48" cy="60" r="4" fill="var(--tinte)"/><circle cx="72" cy="60" r="4" fill="var(--tinte)"/>
-  <path d="M46 74 q14 9 28 0"/>
-  <path d="M40 90 V102 M80 90 V102"/>`},
+  <path d="M24 42 h68 v48 h-68 Z"/><path d="M29 36 h68 v48 M34 30 h68 v48"/><circle cx="47" cy="60" r="3.6" fill="var(--tinte)"/>
+  <circle cx="71" cy="60" r="3.6" fill="var(--tinte)"/><path d="M45 74 q13 9 26 0"/><path d="M40 90 V102 M78 90 V102"/>`},
  {id:'thrombus',n:'Der Thrombus',t:3,p:`
-  <path d="M30 62 q-8 -18 8 -24 q4 -16 22 -14 q18 -6 26 8 q16 4 12 22 q10 14 -6 24 q-6 16 -24 12 q-16 8 -28 -6 q-14 -6 -10 -22Z"/>
-  <circle cx="50" cy="56" r="3.5" fill="var(--tinte)"/><circle cx="72" cy="54" r="3.5" fill="var(--tinte)"/>
-  <path d="M50 72 q12 6 22 -2"/>
-  <path d="M30 38 l-10 -8 M92 44 l11 -7 M88 84 l10 8 M34 86 l-9 9"/>`},
+  
+  <path d="M93.4 56.0 Q93.4,56.0 91.7,64.7 Q90.1,73.4 84.8,81.7 Q79.6,89.9 69.8,89.8 Q60.0,89.6 51.5,87.6 Q43.0,85.5 36.3,79.5 Q29.6,73.5 29.7,64.8 Q29.9,56.0 30.1,47.5 Q30.4,38.9 36.3,32.1 Q42.2,25.2 51.1,21.8 Q60.0,18.4 67.3,24.6 Q74.5,30.9 80.9,35.5 Q87.4,40.2 90.4,48.1 Z"/>
+  <path d="M29.9 45.1 L16.8 40.3 M41.6 29.8 L33.6 18.3 M76.0 28.3 L83.0 16.2 M90.1 45.1 L103.2 40.3 M90.1 66.9 L103.2 71.7 M76.0 83.7 L83.0 95.8 M44.0 83.7 L37.0 95.8 M29.9 66.9 L16.8 71.7"/>
+  <circle cx="50" cy="48" r="3.2" fill="var(--tinte)"/><circle cx="72" cy="48" r="3.2" fill="var(--tinte)"/><path d="M48 70 q12 5 24 -1"/>`},
  {id:'vagus',n:'Die Vagusschlange',t:3,p:`
-  <path d="M18 94 q22 -6 20 -24 q-2 -20 18 -24 q20 -4 22 -18 q2 -12 -8 -16"/>
-  <circle cx="66" cy="14" r="12"/>
-  <circle cx="62" cy="12" r="2.6" fill="var(--tinte)"/><circle cx="72" cy="12" r="2.6" fill="var(--tinte)"/>
-  <path d="M64 20 q5 4 9 0 M68 24 v8 M68 32 l-4 5 M68 32 l4 5"/>`},
- // Stufe 4 — Level 10
+  <path d="M13.9,100.3 L17.5,101.6 L21.0,103.3 L24.7,104.4 L28.2,104.3 L31.6,103.8 L34.8,103.1 L38.0,102.0 L40.9,100.6 L43.6,98.7 L46.0,96.3 L47.9,93.3 L49.1,89.9 L49.5,86.2 L49.0,82.4 L48.1,79.4 L47.7,77.1 L47.6,75.4 L47.8,73.9 L48.2,72.6 L48.8,71.4 L49.8,70.1 L51.0,69.0 L52.6,67.9 L54.4,66.8 L56.6,66.0 L59.0,65.3 L61.5,64.7 L64.2,64.3 L67.1,64.1 L69.5,64.0 L71.7,63.8 L73.8,63.6 L75.8,63.2 L77.7,62.8 L79.5,62.2 L81.2,61.7 L82.9,61.0 L84.4,60.4 L85.9,59.6 L87.3,58.8 L88.7,57.9 L89.9,56.9 L91.1,56.0 L92.2,55.1 C100.4,54.6 100.0,47.5 102.2,40.3 C96.2,40.4 89.0,37.7 85.8,46.9 L84.8,47.6 L83.9,48.2 L82.9,48.8 L81.9,49.3 L80.9,49.7 L79.9,50.2 L78.8,50.6 L77.7,51.0 L76.5,51.3 L75.2,51.6 L73.8,51.7 L72.4,51.9 L70.8,51.9 L69.2,51.9 L66.7,51.9 L63.1,52.1 L59.5,52.5 L56.0,53.2 L52.5,54.2 L49.3,55.5 L46.1,57.1 L43.2,59.0 L40.6,61.3 L38.3,64.1 L36.4,67.2 L35.2,70.8 L34.5,74.6 L34.6,78.5 L35.3,82.5 L36.1,85.3 L36.5,86.9 L36.6,88.1 L36.7,89.2 L36.5,90.4 L36.0,91.7 L35.1,93.0 L33.8,94.3 L32.0,95.5 L29.8,96.5 L27.2,97.1 L24.4,97.6 L21.3,98.7 L17.8,99.7 L14.1,99.7 Z"/>
+  <path d="M41.9 97.2 L37.7 93.2 M45.3 80.1 L38.1 81.8 M49.3 66.8 L44.9 61.2 M64.0 61.6 L63.4 54.8 M77.1 60.3 L75.7 54.0" stroke-width="1.3"/>
+  <circle cx="95.3" cy="49.4" r="2.4"/>
+  <path d="M95.3 47.0 v4.8" stroke-width="1.6"/>
+  <path d="M92.6 45.7 L99.2 41.2" stroke-width="1.5"/>
+  <circle cx="100.1" cy="43.3" r="0.9" fill="var(--tinte)"/>
+  <path d="M102.2 40.3 L106.8 36.4" stroke-width="1.7"/>
+  <path d="M106.8 36.4 L109.1 31.0 M106.8 36.4 L112.6 35.9" stroke-width="1.5"/>`},
  {id:'physikum',n:'Das Physikum',t:4,p:`
-  <path d="M14 100 L60 10 L106 100Z"/>
-  <path d="M28 78 h64 M38 60 h44 M48 42 h24"/>
-  <circle cx="48" cy="86" r="5"/><circle cx="48" cy="86" r="2" fill="var(--tinte)"/>
-  <circle cx="72" cy="86" r="5"/><circle cx="72" cy="86" r="2" fill="var(--tinte)"/>
-  <circle cx="60" cy="68" r="4.5"/><circle cx="60" cy="68" r="2" fill="var(--tinte)"/>
-  <path d="M50 96 q10 6 20 0"/>`,hpMult:1.6},
+  <path d="M12 100 L60 12 L108 100 Z"/><path d="M30 76 h60 M40 58 h40 M50 40 h20"/><circle cx="48" cy="88" r="3.8" fill="var(--tinte)"/>
+  <circle cx="72" cy="88" r="3.8" fill="var(--tinte)"/><circle cx="60" cy="68" r="3.2" fill="var(--tinte)"/><path d="M42 81 l10 3 M78 81 l-10 3"/>
+  <path d="M48 96 q12 6 24 0"/>`,hpMult:1.6},
  {id:'kolloquium',n:'Das Kolloquium',t:5,serie:3,p:`
-  <path d="M16 98 h88 v-8 H16Z"/>
-  <path d="M26 90 V58 q0 -16 16 -16 h36 q16 0 16 16 v32"/>
-  <circle cx="42" cy="30" r="11"/><circle cx="60" cy="24" r="12"/><circle cx="78" cy="30" r="11"/>
-  <circle cx="38" cy="29" r="2.4" fill="var(--tinte)"/><circle cx="46" cy="29" r="2.4" fill="var(--tinte)"/>
-  <circle cx="55" cy="23" r="2.6" fill="var(--tinte)"/><circle cx="65" cy="23" r="2.6" fill="var(--tinte)"/>
-  <circle cx="74" cy="29" r="2.4" fill="var(--tinte)"/><circle cx="82" cy="29" r="2.4" fill="var(--tinte)"/>
-  <path d="M37 36 q5 4 10 0 M55 31 q5 4 10 0 M73 36 q5 4 10 0"/>
-  <path d="M34 62 h52 M34 72 h40"/>`},
+  <path d="M14 100 h92 v-9 H14 Z"/><path d="M24 91 V62 q0 -15 15 -15 h42 q15 0 15 15 v29"/><circle cx="36" cy="30" r="12"/>
+  <circle cx="60" cy="26" r="13"/><circle cx="84" cy="30" r="12"/><circle cx="32" cy="28" r="2.4" fill="var(--tinte)"/>
+  <circle cx="41" cy="28" r="2.4" fill="var(--tinte)"/><circle cx="55" cy="24" r="2.6" fill="var(--tinte)"/>
+  <circle cx="65" cy="24" r="2.6" fill="var(--tinte)"/><circle cx="80" cy="28" r="2.4" fill="var(--tinte)"/>
+  <circle cx="89" cy="28" r="2.4" fill="var(--tinte)"/><path d="M31 36 h10 M55 33 h10 M79 36 h10"/><path d="M32 64 h56 M32 74 h38"/>`},
  {id:'ausschuss',n:'Der Prüfungsausschuss',t:4,p:`
-  <circle cx="30" cy="40" r="13"/><circle cx="60" cy="32" r="14"/><circle cx="90" cy="40" r="13"/>
-  <circle cx="26" cy="38" r="2.6" fill="var(--tinte)"/><circle cx="35" cy="38" r="2.6" fill="var(--tinte)"/>
-  <circle cx="55" cy="30" r="2.8" fill="var(--tinte)"/><circle cx="65" cy="30" r="2.8" fill="var(--tinte)"/>
-  <circle cx="85" cy="38" r="2.6" fill="var(--tinte)"/><circle cx="95" cy="38" r="2.6" fill="var(--tinte)"/>
-  <path d="M25 46 q5 4 10 0 M54 39 q6 5 12 0 M85 46 q5 4 10 0"/>
-  <path d="M18 96 h84 v-26 h-84Z M18 82 h84"/>`,hpMult:1.5}
+  <path d="M28 100 q0 -33 32 -33 q32 0 32 33 Z"/><circle cx="60" cy="44" r="16"/><circle cx="54" cy="41" r="3.2" fill="var(--tinte)"/>
+  <circle cx="66" cy="41" r="3.2" fill="var(--tinte)"/><path d="M53 53 h14"/><path d="M36 26 h48 l-24 -8 -24 8 Z"/>
+  <path d="M60 26 v-4 M84 26 q4 6 1 11"/><path d="M94 58 h18 v9 h-18 Z M101 58 v-10 h4 v10"/><path d="M90 76 h26 v16 h-26 Z M94 83 h18 M94 88 h12"/>`,hpMult:1.5}
 ];
 const SELTEN={common:'gewöhnlich',uncommon:'ungewöhnlich',rare:'selten'};
 const rk=i=>'r-'+(i.r||'common');                 // CSS-Klasse nach Seltenheit
