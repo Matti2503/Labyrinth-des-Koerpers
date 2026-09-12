@@ -135,3 +135,11 @@ body.eink svg.rf path,body.eink .gangsvg .wand{stroke-width:2;opacity:1}
 .schalter button{width:auto;flex:1 1 auto;text-align:center;border:1.5px solid rgba(43,74,139,.3);
   border-radius:6px;padding:9px 10px;font-size:.9em}
 .schalter button[aria-pressed="true"]{border-color:var(--tinte);border-width:2.5px;font-weight:700}
+
+/* Sammlungen: aufklappbare Zeilen */
+.setzeile button{padding:11px 13px}
+.setzeile p{margin:4px 0}
+
+/* Tags, die zur eigenen Sammlung gehoeren */
+.chip-meins{border-width:2px;font-weight:700}
+.chip-nah{border-style:dashed;font-weight:700}

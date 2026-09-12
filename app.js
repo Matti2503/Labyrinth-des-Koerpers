@@ -1,5 +1,5 @@
 /* Leitungsbahnen — Prototyp */
-const BUILD='17';
+const BUILD='20';
 const D=window.GAMEDATA;
 const A={},R={};
 for(const e of D.edges){
@@ -141,7 +141,17 @@ const PERKS=[
  {id:'crit',n:'Ruhige Hand',x:'+5 % Krit-Chance',c:32,max:2},
  {id:'srs',n:'Wiederholungsdrill',x:'Fehlerfragen kommen öfter',c:45,max:1},
  {id:'opt',n:'Semesterferien',x:'5 Item-Optionen statt 4',c:60,max:1}];
-const OPT_STD={schrift:'hand',groesse:'normal',eink:false};
+const STUFEN={
+ laie:   {n:'Laie',    schaden:12, hpVerlust:6,  wahl:5, rerolls:1, krit:1.0, coins:0.8,
+          fragen:'leicht', x:'Mehr Schaden, weniger HP-Verlust, fünf Items zur Wahl. Leichtere Fragen. 20 % weniger Coins.'},
+ experte:{n:'Experte', schaden:10, hpVerlust:8,  wahl:4, rerolls:0, krit:1.0, coins:1.0,
+          fragen:'gemischt', x:'Die ausgewogene Einstellung. Vier Items zur Wahl, Coins unverändert.'},
+ prof:   {n:'Prof',    schaden:9,  hpVerlust:11, wahl:3, rerolls:0, krit:1.4, coins:1.5,
+          fragen:'schwer', x:'Harte Fehler, nur drei Items zur Wahl, schwerere Fragen — dafür 40 % mehr Krit-Bonus und die Hälfte mehr Coins.'}
+};
+const stufeVon=id=>STUFEN[id]||STUFEN.experte;
+const runStufe=()=>stufeVon(G&&G.stufe ? G.stufe : opt().stufe);
+const OPT_STD={schrift:'hand',groesse:'normal',eink:false,stufe:'experte'};
 let meta={coins:0,perks:{},srs:{},enc:0,runs:0,best:0,opt:{...OPT_STD}};
 function opt(){ meta.opt={...OPT_STD,...(meta.opt||{})}; return meta.opt; }
 function setzeOptionen(){
@@ -158,9 +168,10 @@ const perk=id=>meta.perks[id]||0;
 let G=null,S='start',UI={};
 function newRun(){
   const b=D.base;
-  G={level:1,hpMax:b.player_hp_max+perk('hp')*10,dmgBase:b.base_damage_per_correct_answer+perk('dmg')*2,
+  const st=stufeVon(opt().stufe);          // gilt fuer den ganzen Run, spaeteres Umstellen wirkt erst beim naechsten
+  G={level:1,stufe:opt().stufe,hpMax:b.player_hp_max+perk('hp')*10,dmgBase:st.schaden+perk('dmg')*2,
      crit:b.base_crit_chance+perk('crit')*.05,critMult:b.base_crit_multiplier,
-     rerolls:b.rerolls_per_run+perk('rr'),items:[],branches:0,kills:0,corrects:0,
+     rerolls:b.rerolls_per_run+perk('rr')+st.rerolls,items:[],branches:0,kills:0,corrects:0,
      nextFight:2+Math.floor(Math.random()*3),seen:[],luck:0,revive:0,coinMult:1,coinAdd:0,
      wrongFight:false,lastWrong:false,streak:0,qi:0};
   G.hp=G.hpMax; quest(); S='nav';
@@ -193,10 +204,30 @@ function quest(){
 }
 /* Items */
 const tagN=t=>G.items.filter(i=>i.g.includes(t)).length;
+/* Beschreibung und Wirkung stehen bewusst nebeneinander. Die Boni wurden
+   zuvor nur in den Itemdaten gefuehrt und teilweise nie ausgewertet. */
+const SETS={
+ chirurgie:{name:'Chirurgie',
+   3:'+10 % Schaden.',
+   5:'+15 % Krit-Chance und Krit-Multiplikator +0,5.'},
+ notaufnahme:{name:'Notaufnahme',
+   3:'+15 maximale HP, sofort gutgeschrieben.',
+   5:'Erlittener Schaden −15 % und +10 HP bei jedem Quest-Abschluss.'},
+ groessenwahn:{name:'Größenwahn',
+   3:'+15 % Schaden, dafür −10 maximale HP.',
+   5:'Zusätzlich +1 Schaden für je 5 maximale HP, die dir unter 100 fehlen.'},
+ unialltag:{name:'Unialltag',
+   3:'+1 Reroll pro Run.',
+   5:'10 % Chance auf eine entfernte Falschantwort und +15 % Coins am Run-Ende.'},
+ medimeister:{name:'Medimeister',
+   3:'+15 Prozentpunkte auf alle Zufallseffekte im Run.',
+   5:'Nach jedem gewonnenen Kampf 25 % Chance auf ein Gratis-Item.'}
+};
+const SETTAGS=Object.keys(SETS);
 /* Schwere Fragen sind riskanter und werden deshalb staerker belohnt:
    je Schwierigkeitsstufe oberhalb 2 gibt es 7 Prozentpunkte Kritchance dazu. */
 const KRIT_JE_STUFE=0.07;
-const kritBonus=d=>Math.max(0,((d??3)-2))*KRIT_JE_STUFE;
+const kritBonus=d=>Math.max(0,((d??3)-2))*KRIT_JE_STUFE*runStufe().krit;
 const luck=c=>Math.random()<(c+G.luck);
 function equip(it){
   it={...it,e:it.e.map(e=>({...e}))};
@@ -216,6 +247,7 @@ function equip(it){
   if(it.g.includes('notaufnahme')&&tagN('notaufnahme')===3){G.hpMax+=15;G.hp+=15;}
   if(it.g.includes('groessenwahn')&&tagN('groessenwahn')===3){G.hpMax-=10;G.hp=Math.min(G.hp,G.hpMax);}
   if(it.g.includes('unialltag')&&tagN('unialltag')===3)G.rerolls+=1;
+  if(it.g.includes('medimeister')&&tagN('medimeister')===3)G.luck+=0.15;
 }
 function schaden(){
   let flat=G.dmgBase,mult=1;
@@ -243,6 +275,7 @@ function schaden(){
   }
   if(tagN('chirurgie')>=3)mult*=1.10;
   if(tagN('groessenwahn')>=3)mult*=1.15;
+  if(tagN('groessenwahn')>=5)flat+=Math.max(0,Math.floor((100-G.hpMax)/5));
   if(G.wette)mult*=2;
   let d=Math.max(1,Math.round(flat*mult));
   const cc=G.crit+(tagN('chirurgie')>=5?.15:0)+kritBonus(G.q?.d);
@@ -261,7 +294,7 @@ function schaden(){
   return{d,krit};
 }
 function verlust(){
-  let l=D.base.hp_loss_per_wrong_answer,mult=1;
+  let l=runStufe().hpVerlust,mult=1;
   for(const it of G.items)for(const e of it.e){
     if(e.hook!=='onWrong')continue;
     const c=e.condition||{};
@@ -312,13 +345,28 @@ function frage(){
   const frei=q=>!G.seen.includes(q.id);
   const faellig=pool0.filter(q=>frei(q)&&meta.srs[q.id]&&meta.srs[q.id].due<=meta.enc);
   const neu=pool0.filter(q=>frei(q)&&!meta.srs[q.id]);
-  const lokal=pool0.filter(q=>frei(q)&&q.v.includes(G.node));
+  // Ortsbezogene Fragen nur, wenn sie zur gewaehlten Schwierigkeit passen —
+  // sonst wuerden die wenigen Fragen am aktuellen Gefaess die Steuerung aushebeln.
+  const artL=runStufe().fragen;
+  let lokal=pool0.filter(q=>frei(q)&&q.v.includes(G.node));
+  if(artL!=='gemischt'){
+    const passend=lokal.filter(q=> artL==='leicht' ? (q.d??3)<=3 : (q.d??3)>=3);
+    lokal = passend.length?passend:[];
+  }
   const rest=pool0.filter(frei);
   const r=Math.random(),pD=perk('srs')?.75:.60;
   let pool = (lokal.length&&r<.25)?lokal : (faellig.length&&r<pD)?faellig
            : (neu.length&&r<pD+.25)?neu : (rest.length?rest:D.questions);
   if(!pool.length)pool=pool0.length?pool0:D.questions;
-  return pool[(Math.random()*pool.length)|0];
+  // Gewichtung nach Schwierigkeit je nach Spielstufe
+  const art=runStufe().fragen;
+  if(art==='gemischt')return pool[(Math.random()*pool.length)|0];
+  const gew=q=>{const d=q.d??3;
+    return art==='leicht' ? (d<=2?4:d===3?2:1) : (d>=4?4:d===3?2:1);};
+  let summe=0; for(const q of pool)summe+=gew(q);
+  let x=Math.random()*summe;
+  for(const q of pool){x-=gew(q); if(x<=0)return q;}
+  return pool[pool.length-1];
 }
 function bewerte(id,ok){
   meta.enc++;
@@ -418,6 +466,16 @@ const MONSTER=[
 ];
 const SELTEN={common:'gewöhnlich',uncommon:'ungewöhnlich',rare:'selten'};
 const rk=i=>'r-'+(i.r||'common');                 // CSS-Klasse nach Seltenheit
+/* Tags, die du schon sammelst, werden im Angebot markiert — so ist erkennbar,
+   welches Item die naechste Set-Schwelle naeher bringt. */
+function tagChips(i){
+  return i.g.map(t=>{const n=G.items.filter(x=>x.g.includes(t)).length;
+    const naechste = n>=5?null : (n>=3?5:3);
+    const titel = n ? `${n} im Besitz${naechste?`, ${naechste-n} bis zum ${naechste}er`:''}` : '';
+    return `<span class="chip${n?' chip-meins':''}">${esc(t)}${n?` ·&nbsp;${n}`:''}</span>`
+      + (n&&naechste&&naechste-n===1?`<span class="chip chip-nah">nächstes bringt ${naechste}er</span>`:'');
+  }).join('');
+}
 const rlabel=i=>SELTEN[i.r]||i.r;
 const monById=id=>MONSTER.find(m=>m.id===id)||MONSTER[0];
 const monStufe=L=>L<=3?1:L<=6?2:L<=9?3:4;
@@ -471,18 +529,29 @@ function naechsteFrage(){
   }
 }
 function loot(){
-  const n=4+(perk('opt')?1:0)+(G.items.some(i=>i.e.some(e=>e.op==='item_choices_add'))?1:0);
+  const n=runStufe().wahl+(perk('opt')?1:0)+(G.items.some(i=>i.e.some(e=>e.op==='item_choices_add'))?1:0);
   const hab=G.items.map(i=>i.id),aus=G.items.flatMap(i=>i.ex||[]);
   const pool=D.items.filter(i=>!hab.includes(i.id)&&!aus.includes(i.id));
   const w={common:60,uncommon:30,rare:10},out=[];
+  /* Sammlungsaffinitaet: Items der Tags, die du schon sammelst, erscheinen
+     etwas haeufiger. Bewusst schwach gehalten — es soll lenken, nicht garantieren.
+     Gezaehlt wird nur der staerkste passende Tag, sonst wuerden Items mit
+     zwei Tags uebermaessig bevorzugt. */
+  const AFFIN=0.12, AFFIN_MAX=5;
+  const meine={};
+  for(const i of G.items) for(const t of i.g) meine[t]=(meine[t]||0)+1;
+  const gewicht=i=>{
+    const beste=Math.min(AFFIN_MAX, Math.max(0,...i.g.map(t=>meine[t]||0)));
+    return w[i.r]*(1+AFFIN*beste);
+  };
   // Seltenheitsaufwertung durch Items
   let auf=0;
   for(const it of G.items)for(const e of it.e)
     if(e.op==='rarity_upgrade')auf=Math.max(auf,e.condition?.chance??0);
   const hoeher={common:'uncommon',uncommon:'rare',rare:'rare'};
   while(out.length<n&&pool.length){
-    let x=Math.random()*pool.reduce((a,i)=>a+w[i.r],0), k0=-1;
-    for(let k=0;k<pool.length;k++){x-=w[pool[k].r];if(x<=0){k0=k;break;}}
+    let x=Math.random()*pool.reduce((a,i)=>a+gewicht(i),0), k0=-1;
+    for(let k=0;k<pool.length;k++){x-=gewicht(pool[k]);if(x<=0){k0=k;break;}}
     if(k0<0)k0=0;
     let gew=pool[k0];
     if(auf&&Math.random()<auf){
@@ -506,7 +575,7 @@ function kopf(){
   const p=Math.max(0,G.hp)/G.hpMax*100;
   return box(`<div style="display:flex;gap:12px;align-items:flex-start">
     <div style="flex:1 1 auto;min-width:0">
-    <div class="zeile"><span>Level ${G.endlos?G.level+' · Endlos':G.level+'/10'}</span><span class="mono">${Math.max(0,G.hp)} / ${G.hpMax} HP</span></div>
+    <div class="zeile"><span>Level ${G.endlos?G.level+' · Endlos':G.level+'/10'}<span class="klein"> · ${esc(stufeVon(G.stufe).n)}</span></span><span class="mono">${Math.max(0,G.hp)} / ${G.hpMax} HP</span></div>
     <div class="balken"><i style="width:${p}%"></i></div>
     <div class="klein">Bringe den Erythrozyten von <span class="lat">${esc(nm(G.start))}</span> nach <span class="lat">${esc(nm(G.ziel))}</span></div>
     ${G.items.length?`<div class="chips">${G.items.slice(0,4).map(i=>`<span class="chip">${esc(i.n)}</span>`).join('')}${G.items.length>4?`<span class="chip">+${G.items.length-4}</span>`:''}</div>`:''}
@@ -556,7 +625,7 @@ function render(){
   } else if(!['start','shop','export','importform','importpruef','reset','opt'].includes(S)) S='start';
   if(S==='start'){
     h=`<h1>Das Labyrinth<br>des Körpers</h1>
-       <p class="klein">Ein Roguelite über Leitungsbahnen</p>
+       <p class="klein">Ein Roguelite über Leitungsbahnen · Stufe ${esc(stufeVon(opt().stufe).n)}</p>
        ${box(monsterSVG(startMonster),'mon')}
        ${gespeichert?btn(`Run fortsetzen <span class="klein">· Level ${gespeichert.G.level}, ${Math.max(0,gespeichert.G.hp)} HP, ${gespeichert.G.items.length} Items</span>`,'weiterrun'):''}
        ${btn(gespeichert?'Neuen Run starten <span class="klein">· verwirft den gespeicherten</span>':'Neuen Run starten','start')}
@@ -632,7 +701,7 @@ function render(){
     h=kopf()+box(`<h2>Level ${G.level}</h2><p class="klein">Quest abgeschlossen. Wähle ein Item.</p>`,'lvl'+G.level)
      +G.loot.map((i,k)=>`<div class="box duenn ${rk(i)}" data-rough="take${k}"><button data-act="take" data-arg="${k}">
         ${esc(i.n)} <span class="selten">· ${esc(rlabel(i))}</span><br><span class="klein">${esc(i.x)}</span>
-        <div class="chips">${i.g.map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div></button></div>`).join('')
+        <div class="chips">${tagChips(i)}</div></button></div>`).join('')
      +btn(`Neu würfeln (${G.rerolls})`,'reroll','',G.rerolls>0?'':'disabled');
   }
   else if(S==='inv'){
@@ -650,7 +719,7 @@ function render(){
     h=kopf()+box(`<h2>Beute</h2><p class="klein">${esc(G.mon0||'Das Monster')} lässt etwas fallen.</p>`,'drop')
      +G.drop.map((i,k)=>`<div class="box duenn ${rk(i)}" data-rough="drop${k}"><button data-act="takedrop" data-arg="${k}">
         ${esc(i.n)} <span class="selten">· ${esc(rlabel(i))}</span><br><span class="klein">${esc(i.x)}</span>
-        <div class="chips">${i.g.map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div></button></div>`).join('')
+        <div class="chips">${tagChips(i)}</div></button></div>`).join('')
      +btn('Liegen lassen','takedrop','-1');
   }
   else if(S==='export'){
@@ -715,7 +784,18 @@ function render(){
     const o=opt();
     const wahl=(feld,werte)=>`<div class="schalter">`+werte.map(([v,t])=>
       `<button data-act="setopt" data-arg="${feld}:${v}" aria-pressed="${o[feld]===v?'true':'false'}">${t}</button>`).join('')+`</div>`;
+    const laeuft = G && !G.gain && ['nav','fight','loot','drop','inv','wahl'].includes(optVorher);
     h=`<h1>Einstellungen</h1>
+      ${box(`<p>Schwierigkeit</p>
+        <div class="schalter">${Object.entries(STUFEN).map(([k,v])=>
+          `<button data-act="setopt" data-arg="stufe:${k}" aria-pressed="${o.stufe===k?'true':'false'}">${v.n}</button>`).join('')}</div>
+        <p class="klein">${esc(stufeVon(o.stufe).x)}</p>
+        <div class="zeile klein"><span>Grundschaden</span><span class="mono">${stufeVon(o.stufe).schaden}</span></div>
+        <div class="zeile klein"><span>HP-Verlust pro Fehler</span><span class="mono">${stufeVon(o.stufe).hpVerlust}</span></div>
+        <div class="zeile klein"><span>Items zur Auswahl</span><span class="mono">${stufeVon(o.stufe).wahl}</span></div>
+        <div class="zeile klein"><span>Krit-Bonus schwerer Fragen</span><span class="mono">×${stufeVon(o.stufe).krit.toFixed(1)}</span></div>
+        <div class="zeile klein"><span>Coins</span><span class="mono">×${stufeVon(o.stufe).coins.toFixed(1)}</span></div>
+        ${laeuft?`<p class="klein falsch">Der laufende Run behält die Stufe ${esc(stufeVon(G.stufe).n)}. Die Änderung greift ab dem nächsten Run.</p>`:''}`,'o0')}
       ${box(`<p>Schriftart</p>
         <p class="klein">Die Handschrift passt zum Zeichenblock, die klare Schrift liest sich bei langen Texten leichter.</p>
         ${wahl('schrift',[['hand','Handschrift'],['klar','Klar lesbar']])}`,'o1')}
@@ -733,8 +813,6 @@ function render(){
     const titel=G.dead?'Run beendet'
       :(G.endlos?`Endlos-Modus · Level ${G.level}`
       :(G.finaleBestanden?'Kolloquium bestanden':'Geschafft'));
-    const setz=['chirurgie','notaufnahme','groessenwahn','unialltag','medimeister']
-      .map(t=>[t,G.items.filter(i=>i.g.includes(t)).length]).filter(x=>x[1]>=3);
     h=`<h1>${titel}</h1>
       ${G.abbruch?box(`<p class="falsch">${esc(G.abbruch)}</p>`,'abbr','duenn'):''}
       ${G.finaleBestanden&&!G.endlos?box(`${monsterSVG('kolloquium')}<p class="richtig zentriert">Drei Fragen in Folge — der Run ist vollständig abgeschlossen.</p>`,'fin'):''}
@@ -743,9 +821,11 @@ function render(){
         <div class="zeile"><span>Beantwortete Fragen</span><span class="mono">${G.beantwortet||0}</span></div>
         <div class="zeile"><span>Trefferquote</span><span class="mono">${quote} %</span></div>
         ${G.neuGemeistert?`<div class="zeile"><span>Neu gemeistert</span><span class="mono">${G.neuGemeistert}</span></div>`:''}
-        <div class="zeile"><span>Verbliebene HP</span><span class="mono">${Math.max(0,G.hp)} / ${G.hpMax}</span></div>`,'stat')}
+        <div class="zeile"><span>Verbliebene HP</span><span class="mono">${Math.max(0,G.hp)} / ${G.hpMax}</span></div>
+        <div class="zeile"><span>Schwierigkeit</span><span class="mono">${esc(stufeVon(G.stufe).n)}</span></div>`,'stat')}
       ${box(`<div class="zeile klein"><span>Grundbetrag${G.dead?' (halbiert)':''}</span><span class="mono">${G.gainBasis}</span></div>
         ${G.gainMult!==1?`<div class="zeile klein"><span>Item-Bonus</span><span class="mono">×${G.gainMult.toFixed(2)}</span></div>`:''}
+        ${G.gainStufe!==1?`<div class="zeile klein"><span>Stufe ${esc(stufeVon(G.stufe).n)}</span><span class="mono">×${G.gainStufe.toFixed(1)}</span></div>`:''}
         ${G.gainExtra?`<div class="zeile klein"><span>Zusatz aus Items</span><span class="mono">+${G.gainExtra}</span></div>`:''}
         <hr><div class="zeile"><span>Coins aus diesem Run</span><span class="mono">+${G.gain}</span></div>
         <div class="zeile klein"><span>Gesamtbestand</span><span class="mono">${meta.coins}</span></div>`,'coins')}
@@ -756,8 +836,7 @@ function render(){
           ${i._ch!=null?`<p class="klein">${i._ch>0?`${i._ch} ${i._ch===1?'Ladung':'Ladungen'} übrig`:'aufgebraucht'}</p>`:''}
           <div class="chips">${i.g.map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div>`,'e'+i.id,'duenn '+rk(i))).join('')
         : box(`<p class="klein">Dieser Run endete ohne Items.</p>`,'keine','duenn')}
-      ${setz.length?box(`<p class="klein">Aktive Sammlungen</p>${setz.map(([t,n])=>
-          `<div class="zeile"><span class="klein">${t}</span><span class="klein mono">${n} Items · ${n>=5?'5er-Bonus':'3er-Bonus'}</span></div>`).join('')}`,'setz','duenn'):''}
+      ${setUebersicht()}
       ${btn('Neuer Run','start')}${btn('Perks kaufen','shop')}`;
   }
   else if(S==='shop'){
@@ -778,11 +857,22 @@ function render(){
   window.scrollTo(0,0);
 }
 function setUebersicht(){
-  const tags=['chirurgie','notaufnahme','groessenwahn','unialltag','medimeister'];
-  const zeilen=tags.map(t=>{const n=tagN(t);if(!n)return '';
-    const stufe=n>=5?'5er-Bonus aktiv':n>=3?'3er-Bonus aktiv':`noch ${3-n} bis zum Bonus`;
-    return `<div class="zeile"><span class="klein">${t}</span><span class="klein mono">${n} · ${stufe}</span></div>`;}).join('');
-  return zeilen?box(`<p class="klein">Sammlungen</p>${zeilen}`,'sets','duenn'):'';
+  const zeilen=SETTAGS.map(t=>{
+    const n=tagN(t); if(!n)return '';
+    const s3=n>=3, s5=n>=5;
+    const stand = s5?'3er und 5er aktiv' : s3?`3er aktiv · noch ${5-n} bis zum 5er` : `noch ${3-n} bis zum 3er`;
+    const offen = G.setOffen===t;
+    return `<div class="box duenn setzeile" data-rough="set${t}">
+      <button data-act="setinfo" data-arg="${t}" aria-expanded="${offen}">
+        <div class="zeile"><span>${esc(SETS[t].name)}</span><span class="mono klein">${n} ${n===1?'Item':'Items'}</span></div>
+        <div class="zeile klein"><span>${stand}</span><span>${offen?'▾':'▸'}</span></div>
+        ${offen?`<div class="klein" style="margin-top:6px">
+            <p class="${s3?'richtig':''}">Ab 3 Items: ${esc(SETS[t][3])}${s3?'':' — noch nicht aktiv'}</p>
+            <p class="${s5?'richtig':''}">Ab 5 Items: ${esc(SETS[t][5])}${s5?'':' — noch nicht aktiv'}</p>
+            <div class="chips">${G.items.filter(i=>i.g.includes(t)).map(i=>`<span class="chip">${esc(i.n)}</span>`).join('')}</div>
+          </div>`:''}
+      </button></div>`;}).join('');
+  return zeilen?`<h2 class="abstand">Sammlungen</h2><p class="klein">Antippen zeigt, was der Bonus bewirkt.</p>${zeilen}`:'';
 }
 function hatWette(){return G.items.some(i=>i.e.some(e=>e.op==='offer_gamble'));}
 const GANG={w:66,wand:8,rechts:52,halb:15,fig:22};
@@ -906,6 +996,7 @@ app.addEventListener('click',async ev=>{
     opt()[feld]= wert==='true'?true : wert==='false'?false : wert;
     setzeOptionen(); await saveMeta();
   }
+  else if(a==='setinfo'){G.setOffen = G.setOffen===arg ? null : arg;}
   else if(a==='inv'){G.zurueck=S;S='inv';}
   else if(a==='back'){S=G.zurueck||'nav';}
   else if(a==='wette'){G.wette=true;}
@@ -1018,6 +1109,10 @@ function weiter(){
   if(G.mon.hp<=0){
     if(G.finale){G.finale=false;G.finaleBestanden=true;G.mon=null;S='wahl';return;}
     const name=G.mon.n; G.mon=null; G.msg=name+' besiegt.';
+    if(tagN('medimeister')>=5&&Math.random()<0.25){
+      const frei=loot().slice(0,1);
+      if(frei.length){ equip(frei[0]); G.msg+=' Die Medimeister-Sammlung wirft '+frei[0].n+' ab.'; }
+    }
     for(const it of G.items)for(const e of it.e)
       if(e.hook==='onFightEnd'&&e.op==='reroll_add'&&luck(e.condition?.chance??1)){
         G.rerolls+=e.value; G.msg+=' '+it.n+' schenkt dir einen Reroll.';
@@ -1042,10 +1137,14 @@ function ende(tot){
   let mult=1;
   for(const it of G.items)for(const e of it.e)
     if(e.hook==='onRunEnd'&&e.op==='coins_mult')mult*=e.value;
+  if(tagN('unialltag')>=5)mult*=1.15;
   c*=mult;                                   // gilt auch, wenn der Run verloren geht
+  const stufenFaktor=runStufe().coins;
+  c*=stufenFaktor;
   c=Math.max(0,Math.round(c)+(G.coinAdd||0));
   if(G.endlos)meta.bestEndlos=Math.max(meta.bestEndlos||0,G.level);
-  G.gain=c; G.gainBasis=Math.round(tot?basis*0.5:basis); G.gainMult=mult; G.gainExtra=G.coinAdd||0;meta.coins+=c;meta.runs++;meta.best=Math.max(meta.best,G.level);
+  G.gain=c; G.gainBasis=Math.round(tot?basis*0.5:basis); G.gainMult=mult;
+  G.gainExtra=G.coinAdd||0; G.gainStufe=stufenFaktor;meta.coins+=c;meta.runs++;meta.best=Math.max(meta.best,G.level);
   S='end';                                   // sofort, nicht erst nach dem Speichern
   loescheRun(); gespeichert=null;
   saveMeta();
