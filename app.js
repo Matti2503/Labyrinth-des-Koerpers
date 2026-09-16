@@ -1,5 +1,5 @@
 /* Leitungsbahnen — Prototyp */
-const BUILD='22';
+const BUILD='26';
 const D=window.GAMEDATA;
 const A={},R={};
 for(const e of D.edges){
@@ -106,7 +106,8 @@ function loescheRun(){
   try{ if(window.storage) window.storage.delete(RUNKEY); }catch(e){}
 }
 function codeAus(m){
-  const kern={c:m.coins|0,p:m.perks||{},r:m.runs|0,b:m.best|0,e:m.enc|0,s:m.srs||{}};
+  const kern={c:m.coins|0,p:m.perks||{},r:m.runs|0,b:m.best|0,e:m.enc|0,s:m.srs||{},
+              ch:(m.chars&&m.chars.frei)||['normalo'],cg:(m.chars&&m.chars.gewaehlt)||'normalo'};
   return 'LB1-'+btoa(unescape(encodeURIComponent(JSON.stringify(kern)))).replace(/=+$/,'');
 }
 function codeEin(txt){
@@ -125,8 +126,10 @@ function codeEin(txt){
   for(const id in (k.s||{})) if(gueltig.has(id)){
     const e=k.s[id]; srs[id]={n:Math.max(0,Math.min(4,e.n|0)),due:e.due|0,w:e.w|0};
   }
+  const frei=[...new Set(['normalo',...(Array.isArray(k.ch)?k.ch:[]).filter(x=>CHARIDS.includes(x))])];
+  const gew=CHARIDS.includes(k.cg)&&frei.includes(k.cg)?k.cg:'normalo';
   return {coins:Math.max(0,k.c|0),perks,runs:Math.max(0,k.r|0),best:Math.max(0,Math.min(10,k.b|0)),
-          enc:Math.max(0,k.e|0),srs};
+          enc:Math.max(0,k.e|0),srs,chars:{frei,gewaehlt:gew}};
 }
 let startMonster='zweifel';
 let optVorher='start';
@@ -152,7 +155,12 @@ const STUFEN={
 const stufeVon=id=>STUFEN[id]||STUFEN.experte;
 const runStufe=()=>stufeVon(G&&G.stufe ? G.stufe : opt().stufe);
 const OPT_STD={schrift:'hand',groesse:'normal',eink:false,stufe:'experte'};
-let meta={coins:0,perks:{},srs:{},enc:0,runs:0,best:0,opt:{...OPT_STD}};
+let meta={coins:0,perks:{},srs:{},enc:0,runs:0,best:0,opt:{...OPT_STD},
+          chars:{frei:['normalo'],gewaehlt:'normalo'}};
+function chars(){ meta.chars={frei:['normalo'],gewaehlt:'normalo',...(meta.chars||{})};
+  if(!meta.chars.frei.includes('normalo'))meta.chars.frei.push('normalo');
+  if(!charFrei(meta.chars.gewaehlt))meta.chars.gewaehlt='normalo';
+  return meta.chars; }
 function opt(){ meta.opt={...OPT_STD,...(meta.opt||{})}; return meta.opt; }
 function setzeOptionen(){
   const o=opt(), b=document.body; if(!b)return;
@@ -169,7 +177,9 @@ let G=null,S='start',UI={};
 function newRun(){
   const b=D.base;
   const st=stufeVon(opt().stufe);          // gilt fuer den ganzen Run, spaeteres Umstellen wirkt erst beim naechsten
-  G={level:1,stufe:opt().stufe,hpMax:b.player_hp_max+perk('hp')*10,dmgBase:st.schaden+perk('dmg')*2,
+  const ch=chars().gewaehlt;
+  G={level:1,char:ch,schieben:ch==='verschlafen'?5:0,vollgas:ch==='highperformer'?20:0,
+     instinkt:0,stufe:opt().stufe,hpMax:b.player_hp_max+perk('hp')*10,dmgBase:st.schaden+perk('dmg')*2,
      crit:b.base_crit_chance+perk('crit')*.05,critMult:b.base_crit_multiplier,
      rerolls:b.rerolls_per_run+perk('rr')+st.rerolls,items:[],branches:0,kills:0,corrects:0,
      nextFight:2+Math.floor(Math.random()*3),seen:[],luck:0,revive:0,coinMult:1,coinAdd:0,
@@ -206,6 +216,39 @@ function quest(){
 const tagN=t=>G.items.filter(i=>i.g.includes(t)).length;
 /* Beschreibung und Wirkung stehen bewusst nebeneinander. Die Boni wurden
    zuvor nur in den Itemdaten gefuehrt und teilweise nie ausgewertet. */
+/* ---------- Charaktere ----------
+   Jeder Charakter veraendert den Run spuerbar. Die Figurteile werden zu der
+   Strichfigur addiert, die ohnehin Ausruestung und Level abbildet. */
+const CHARS={
+ normalo:{n:'Normalo',spruch:'Macht sein Ding.',preis:0,
+   x:['Keine Sonderwirkung. Der Maßstab für alles andere.'],
+   figur:[]},
+ minmaxer:{n:'Min-Maxer',spruch:'Lernt immer erst drei Tage vor der Prüfung.',preis:70,
+   x:['20 % Chance, dass eine falsche Antwort trotzdem als richtig gewertet wird.',
+      '10 % Chance, dass eine richtige Antwort als falsch gewertet wird.',
+      'Der Lernstand zählt die tatsächliche Antwort, nicht das Würfelergebnis.'],
+   figur:['<path d="M17 21 q13 -22 26 0"/>','<path d="M17 21 l-2 5 M43 21 l2 5"/>',
+          '<path d="M24 26 q6 4 12 0"/>']},
+ verschlafen:{n:'Der Verschlafende',spruch:'Nimmt sich immer ein bisschen mehr Zeit.',preis:90,
+   x:['Fünfmal pro Run kann eine Frage mit „Physikum schieben“ übersprungen werden.',
+      'An jeder Abzweigung 1 % Chance, das Abbiegen zu verschlafen — dann geht es geradeaus weiter.'],
+   figur:['<path d="M21 11 q9 -14 19 -1 l7 -2 q2 5 -4 6"/>','<circle cx="49" cy="14" r="2.6"/>',
+          '<path d="M45 3 h7 l-7 8 h7"/>']},
+ highperformer:{n:'High-Performer',spruch:'Gibt Vollgas, bis der Tank alle ist.',preis:110,
+   x:['15 % Chance, dass eine Frage sich von selbst löst: „zu einfach, wusste ich schon“.',
+      'Der Effekt hat 20 Ladungen. Ist die letzte verbraucht, endet der Run im Burnout.'],
+   figur:['<path d="M20 14 h20"/>','<path d="M43 9 l5 -4 M45 15 l6 -2 M42 21 l5 1"/>']},
+ mediminister:{n:'Medi-Minister',spruch:'Alter, hab ich gestern gebechert. Vielleicht hätten sechs Bier gereicht.',preis:130,
+   x:['Jede zweite Abzweigung findest du instinktiv richtig — ohne nachzudenken.',
+      'Dafür sind in Fragen und Antworten die Buchstaben jedes Wortes durcheinander; nur der erste und der letzte bleiben stehen.'],
+   figur:['<path d="M23 8 l7 -11 l7 11 Z"/>','<path d="M44 36 h9 v10 h-9Z M53 39 h3 v4 h-3"/>',
+          '<path d="M30 33 L44 39"/>']}
+};
+const CHARIDS=Object.keys(CHARS);
+const charVon=id=>CHARS[id]||CHARS.normalo;
+const runChar=()=>charVon(G&&G.char?G.char:(meta.chars&&meta.chars.gewaehlt));
+const charFrei=id=>id==='normalo'||((meta.chars&&meta.chars.frei)||[]).includes(id);
+
 const SETS={
  chirurgie:{name:'Chirurgie',
    3:'+10 % Schaden.',
@@ -340,6 +383,15 @@ function aktivePool(){
   return aktiv;
 }
 const gemeistertAnzahl=()=>D.questions.filter(q=>(meta.srs[q.id]||{}).ruhe).length;
+/* Wuerfelt die Buchstaben im Wortinneren durcheinander. Erster und letzter
+   Buchstabe bleiben stehen, Zahlen und kurze Woerter bleiben unberuehrt. */
+function anagramm(txt){
+  return String(txt).replace(/[A-Za-zÄÖÜäöüß]{4,}/g,w=>{
+    const mitte=w.slice(1,-1).split('');
+    for(let i=mitte.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[mitte[i],mitte[j]]=[mitte[j],mitte[i]];}
+    return w[0]+mitte.join('')+w[w.length-1];
+  });
+}
 function frage(){
   const pool0=aktivePool();
   const frei=q=>!G.seen.includes(q.id);
@@ -467,7 +519,7 @@ const monHP=()=>{const L=G.level;
 function finale(){
   const w=MONSTER.find(m=>m.id==='kolloquium');
   G.mon={id:w.id,n:w.n,hp:w.serie,max:w.serie,serie:w.serie};
-  G.wrongFight=false;G.qi=0;G.stack=0;G.finale=true;naechsteFrage();S='fight';
+  G.wrongFight=false;G.qi=-1;G.stack=0;G.finale=true;naechsteFrage();S='fight';
 }
 function kampf(){
   const stufe=monStufe(G.level);
@@ -479,7 +531,7 @@ function kampf(){
   const w=pool[(Math.random()*pool.length)|0];
   const m=w.serie?w.serie:Math.round(monHP()*(w.hpMult||1));
   G.mon={id:w.id,n:w.n,hp:m,max:m,serie:w.serie||0};
-  G.wrongFight=false;G.qi=0;G.stack=0;naechsteFrage();S='fight';
+  G.wrongFight=false;G.qi=-1;G.stack=0;naechsteFrage();S='fight';
 }
 function naechsteFrage(){
   const q=frage();G.q=q;G.seen.push(q.id);
@@ -495,6 +547,8 @@ function naechsteFrage(){
   const pool=[...falsch];
   for(let i=0;i<n&&pool.length>1;i++)weg.push(pool.splice((Math.random()*pool.length)|0,1)[0]);
   G.weg=weg;G.antwort=null;G.wette=false;G.meisterJetzt=false;
+  G.qi=(G.qi==null?-1:G.qi)+1;   // 0 = erste Frage des Kampfes
+  G.hinweisSchieben=null;
   G.fragenGesamt=(G.fragenGesamt||0)+1;
   // Themenhinweis
   G.tipp=null;
@@ -504,8 +558,17 @@ function naechsteFrage(){
     if(c.chance!=null&&!luck(c.chance))continue;
     G.tipp=(q.t&&q.t.length)?q.t.join(', '):q.f;
   }
+  // Medi-Minister: Buchstaben im Wortinneren verwuerfeln
+  if(G.char==='mediminister'){
+    G.anzeigeStamm=anagramm(q.s);
+    for(const k in G.anz)G.anz[k]=anagramm(G.anz[k]);
+  } else G.anzeigeStamm=null;
   // Frage loest sich von selbst
   G.auto=false;
+  if(G.char==='highperformer'&&G.vollgas>0&&Math.random()<0.15){
+    G.vollgas--; G.auto='Zu einfach, wusste ich schon';
+    if(G.vollgas===0)G.burnout=true;
+  }
   for(const it of G.items)for(const e of it.e){
     if(e.hook!=='onQuestionStart'||e.op!=='auto_resolve_correct')continue;
     if(luck(e.condition?.chance??0))G.auto=it.n;
@@ -558,7 +621,7 @@ function kopf(){
   const p=Math.max(0,G.hp)/G.hpMax*100;
   return box(`<div style="display:flex;gap:12px;align-items:flex-start">
     <div style="flex:1 1 auto;min-width:0">
-    <div class="zeile"><span>Level ${G.endlos?G.level+' · Endlos':G.level+'/10'}<span class="klein"> · ${esc(stufeVon(G.stufe).n)}</span></span><span class="mono">${Math.max(0,G.hp)} / ${G.hpMax} HP</span></div>
+    <div class="zeile"><span>Level ${G.endlos?G.level+' · Endlos':G.level+'/10'}<span class="klein"> · ${esc(stufeVon(G.stufe).n)} · ${esc(charVon(G.char).n)}</span></span><span class="mono">${Math.max(0,G.hp)} / ${G.hpMax} HP</span></div>
     <div class="balken"><i style="width:${p}%"></i></div>
     <div class="klein">Bringe den Erythrozyten von <span class="lat">${esc(nm(G.start))}</span> nach <span class="lat">${esc(nm(G.ziel))}</span></div>
     ${G.items.length?`<div class="chips">${G.items.slice(0,4).map(i=>`<span class="chip">${esc(i.n)}</span>`).join('')}${G.items.length>4?`<span class="chip">+${G.items.length-4}</span>`:''}</div>`:''}
@@ -575,12 +638,20 @@ function figurPfade(breite,mitteX){
   if(t('unialltag')>0) p.push('<path d="M22 8 h16 M24 8 v-4 h12 v4"/>');        // Kaeppi
   if(t('medimeister')>0) p.push('<path d="M44 60 h9 v9 h-9Z M53 62 h4 v4 h-4"/>'); // Krug
   if(L>=5) p.push('<path d="M22 9 q8 -7 16 0"/>');                              // Helmbuegel
-  if(L>=8) p.push('<path d="M14 70 q16 5 32 0"/>');                             // Standlinie
+  if(L>=8) p.push('<path d="M14 70 q16 5 32 0"/>');
+  p.push(...runChar().figur);                             // Standlinie
   const sk=breite/FIG_VB;
   // Die Figur ist im eigenen Koordinatensystem um x=31 symmetrisch.
   const dx=(mitteX==null? 3 : mitteX - (FIG_VB/2)*sk);
   return `<g transform="translate(${dx.toFixed(2)},0) scale(${sk.toFixed(3)})" fill="none" stroke="var(--tinte)"
     stroke-width="${(1.9/sk).toFixed(2)}" stroke-linecap="round" stroke-linejoin="round">${p.join('')}</g>`;
+}
+function charBild(id){
+  const p=['<circle cx="30" cy="16" r="8"/><path d="M30 24 V50 M30 32 L18 40 M30 32 L42 40 M30 50 L21 66 M30 50 L39 66"/>',
+           ...CHARS[id].figur];
+  return `<svg viewBox="0 0 62 76" width="46" height="56" aria-hidden="true" style="flex:0 0 auto">
+    <g transform="translate(3,0) scale(0.9)" fill="none" stroke="var(--tinte)" stroke-width="2.1"
+       stroke-linecap="round" stroke-linejoin="round">${p.join('')}</g></svg>`;
 }
 function heldSVG(){
   return `<svg viewBox="0 0 ${FIG_VB} ${FIG_VBH}" width="50" height="62" aria-label="Deine Figur, Level ${G.level}"
@@ -605,11 +676,12 @@ function render(){
     if(S==='fight'&&!G.mon)S='nav';
     if(S==='drop'&&!G.drop)S='nav';
     if(S==='loot'&&!G.loot)S='nav';
-  } else if(!['start','shop','export','importform','importpruef','reset','opt'].includes(S)) S='start';
+  } else if(!['start','shop','export','importform','importpruef','reset','opt','chars'].includes(S)) S='start';
   if(S==='start'){
     h=`<h1>Das Labyrinth<br>des Körpers</h1>
-       <p class="klein">Ein Roguelite über Leitungsbahnen · Stufe ${esc(stufeVon(opt().stufe).n)}</p>
+       <p class="klein">Ein Roguelite über Leitungsbahnen · Stufe ${esc(stufeVon(opt().stufe).n)} · ${esc(charVon(chars().gewaehlt).n)}</p>
        ${box(monsterSVG(startMonster),'mon')}
+       ${btn(`Charakter <span class="klein">· ${esc(charVon(chars().gewaehlt).n)}</span>`,'chars')}
        ${gespeichert?btn(`Run fortsetzen <span class="klein">· Level ${gespeichert.G.level}, ${Math.max(0,gespeichert.G.hp)} HP, ${gespeichert.G.items.length} Items</span>`,'weiterrun'):''}
        ${btn(gespeichert?'Neuen Run starten <span class="klein">· verwirft den gespeicherten</span>':'Neuen Run starten','start')}
        ${btn(`Laden &amp; Perks &nbsp;·&nbsp; ${meta.coins} Coins`,'shop')}
@@ -629,11 +701,14 @@ function render(){
         de(G.node)?' · '+esc(de(G.node)):''}</p>
       ${d!=null?`<p class="klein">Noch ${d} ${d===1?'Abzweigung':'Abzweigungen'} bis zum Ziel</p>`:`<p class="klein falsch">Von hier führt kein Weg zum Ziel.</p>`}`,'ort'+G.node,tk(G.node))
       +(G.msg?box(`<p>${G.msg}</p>`,'msg','duenn'):'')
-      +`<p class="klein abstand">Wohin fließt das Blut?</p>`
+      +(G.instinktJetzt
+        ? box(`<p class="richtig">Instinkt. Du weißt nicht warum, aber der Weg stimmt.</p>`,'inst','duenn')
+          +btn(`Weiter nach <span class="lat">${esc(nm((A[G.node]||[])[instinktZiel()]?.t||''))}</span>`,'go',String(instinktZiel()))
+        : `<p class="klein abstand">Wohin fließt das Blut?</p>`)
       +`<div id="gang" class="gang ${tk(G.node)}"><svg id="gangsvg" class="gangsvg" width="${GANG.w}" aria-hidden="true"></svg>`
-      +aus.map((e,i)=>`<div class="box duenn opt ${tk(e.t)}" data-rough="go${i}"><button data-act="go" data-arg="${i}">`
+      +(G.instinktJetzt?'':aus.map((e,i)=>`<div class="box duenn opt ${tk(e.t)}" data-rough="go${i}"><button data-act="go" data-arg="${i}">`
           +`<span class="lat">${esc(nm(e.t))}</span><span class="klein"> — ${esc(rel(e))}</span>`
-          +(G.zeige===i?` <span class="klein richtig">· hierhin</span>`:'')+`</button></div>`).join('')
+          +(G.zeige===i?` <span class="klein richtig">· hierhin</span>`:'')+`</button></div>`).join(''))
       +`</div>`
       +G.items.map((it,k)=>it._ch>0&&G.zeige==null&&d>0
           ? btn(`${esc(it.n)} benutzen <span class="klein">· ${it._ch} ${it._ch===1?'Ladung':'Ladungen'}</span>`,'use',String(k)) : '').join('')
@@ -659,7 +734,9 @@ function render(){
       +box(`<div class="zeile"><span class="klein">${esc(q.f)}</span>
         <span class="klein">${'●'.repeat(q.d||3)}${'○'.repeat(Math.max(0,5-(q.d||3)))}${
           kritBonus(q.d)>0?` · +${Math.round(kritBonus(q.d)*100)} % Krit`:''}</span></div>
-        <p>${esc(q.s)}</p>`,'q'+q.id);
+        <p>${esc(G.anzeigeStamm||q.s)}</p>
+        ${G.anzeigeStamm?`<p class="klein">Die Buchstaben tanzen. Erster und letzter bleiben stehen.</p>`:''}`,'q'+q.id);
+    if(G.hinweisSchieben) h+=box(`<p class="klein">${esc(G.hinweisSchieben)}</p>`,'gesch','duenn');
     if(G.tipp) h+=box(`<p class="klein">Hinweis: ${esc(G.tipp)}</p>`,'tipp','duenn');
     if(G.auto&&G.antwort===null){
       h+=box(`<p class="richtig">${esc(G.auto)}: Die Frage löst sich von selbst — voller Schaden ohne Antwort.</p>`,'auto','duenn')
@@ -667,12 +744,13 @@ function render(){
     }
     else if(G.antwort===null){
       h+=opts.map(k=>btn(`${k}) ${esc(G.anz[k])}`,'ans',k)).join('');
+      if(G.schieben>0) h+=btn(`Physikum schieben <span class="klein">· Frage überspringen, ${G.schieben} übrig</span>`,'schieben');
       if(hatWette()) h+= G.wette
         ? box(`<p class="richtig">Wette läuft: doppelter Schaden, doppelter HP-Verlust.</p>`,'wette1','duenn')
         : btn(`Wetten <span class="klein">· doppelter Schaden bei richtig, doppelter HP-Verlust bei falsch</span>`,'wette');
       if(G.weg.length)h+=`<p class="hinweis">${G.weg.length} Falschantwort${G.weg.length>1?'en':''} durch ein Item entfernt.</p>`;
     }else{
-      const ok=G.antwort===G.korrekt;
+      const ok=G.gewertet!=null?G.gewertet:(G.antwort===G.korrekt);
       h+=(G.meisterJetzt?box(`<p class="richtig">Diese Frage sitzt — ${MEISTERN} mal in Folge richtig. Sie pausiert jetzt, damit neue nachrücken.</p>`,'meist','duenn'):'')
         +btn(`Inventar <span class="klein">· ${G.items.length}</span>`,'inv')
         +box(`<p class="${ok?'richtig':'falsch'}">${ok?'Richtig':'Falsch'} — ${G.korrekt}) ${esc(G.anz[G.korrekt])}</p>
@@ -805,7 +883,8 @@ function render(){
         <div class="zeile"><span>Trefferquote</span><span class="mono">${quote} %</span></div>
         ${G.neuGemeistert?`<div class="zeile"><span>Neu gemeistert</span><span class="mono">${G.neuGemeistert}</span></div>`:''}
         <div class="zeile"><span>Verbliebene HP</span><span class="mono">${Math.max(0,G.hp)} / ${G.hpMax}</span></div>
-        <div class="zeile"><span>Schwierigkeit</span><span class="mono">${esc(stufeVon(G.stufe).n)}</span></div>`,'stat')}
+        <div class="zeile"><span>Schwierigkeit</span><span class="mono">${esc(stufeVon(G.stufe).n)}</span></div>
+        <div class="zeile"><span>Charakter</span><span class="mono">${esc(charVon(G.char).n)}</span></div>`,'stat')}
       ${box(`<div class="zeile klein"><span>Grundbetrag${G.dead?' (halbiert)':''}</span><span class="mono">${G.gainBasis}</span></div>
         ${G.gainMult!==1?`<div class="zeile klein"><span>Item-Bonus</span><span class="mono">×${G.gainMult.toFixed(2)}</span></div>`:''}
         ${G.gainStufe!==1?`<div class="zeile klein"><span>Stufe ${esc(stufeVon(G.stufe).n)}</span><span class="mono">×${G.gainStufe.toFixed(1)}</span></div>`:''}
@@ -821,6 +900,29 @@ function render(){
         : box(`<p class="klein">Dieser Run endete ohne Items.</p>`,'keine','duenn')}
       ${setUebersicht()}
       ${btn('Neuer Run','start')}${btn('Perks kaufen','shop')}`;
+  }
+  else if(S==='chars'){
+    const c=chars();
+    h=`<h1>Charakter</h1>
+      <p class="klein">Der Charakter wird beim Start eines Runs übernommen und gilt bis zu dessen Ende.</p>
+      ${box(`<div class="zeile"><span>Verfügbar</span><span class="mono">${meta.coins} Coins</span></div>`,'cc','duenn')}
+      ${CHARIDS.map(id=>{const k=CHARS[id],frei=charFrei(id),aktiv=c.gewaehlt===id;
+        return `<div class="box ${aktiv?'':'duenn'}" data-rough="ch${id}">
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <div style="flex:1 1 auto;min-width:0">
+              <div class="zeile"><span>${esc(k.n)}</span><span class="klein mono">${
+                aktiv?'gewählt':(frei?'verfügbar':k.preis+' Coins')}</span></div>
+              <p class="klein">„${esc(k.spruch)}“</p>
+              ${k.x.map(t=>`<p class="klein">· ${esc(t)}</p>`).join('')}
+            </div>
+            ${charBild(id)}
+          </div>
+          ${aktiv?'':(frei
+             ? `<div class="box duenn" data-rough="w${id}"><button data-act="charwahl" data-arg="${id}">Diesen Charakter wählen</button></div>`
+             : `<div class="box duenn" data-rough="k${id}"><button data-act="charkauf" data-arg="${id}" ${meta.coins<k.preis?'disabled':''}>Für ${k.preis} Coins freischalten</button></div>`)}
+        </div>`;}).join('')}
+      ${hinweis?box(`<p class="falsch">${esc(hinweis)}</p>`,'chw','duenn'):''}
+      ${btn('Zurück','home')}`;
   }
   else if(S==='shop'){
     h=`<h1>Perks</h1>${box(`<div class="zeile"><span>Verfügbar</span><span class="mono">${meta.coins} Coins</span></div>`,'coins','duenn')}
@@ -909,6 +1011,11 @@ function laufe(i){
     },t1+40);
   });
 }
+function instinktZiel(){
+  const aus=A[G.node]||[]; let best=0,bd=Infinity;
+  aus.forEach((e,i)=>{const d=G.dist[e.t]; if(d!=null&&d<bd){bd=d;best=i;}});
+  return best;
+}
 function rel(e){
   const m={branch_of:'Ast',continues_as:'Fortsetzung',drains_into:'mündet in',
            anastomosis:'Anastomose',portal:'Pfortaderstrecke',portokaval:'portokaval'};
@@ -932,6 +1039,14 @@ app.addEventListener('click',async ev=>{
   }
   else if(a==='home'){S=(G&&G.gain!=null)?'end':'start';}
   else if(a==='shop'){S='shop';}
+  else if(a==='chars'){hinweis='';S='chars';}
+  else if(a==='charwahl'){ if(charFrei(arg)){chars().gewaehlt=arg; await saveMeta();} }
+  else if(a==='charkauf'){
+    const k=CHARS[arg];
+    if(k&&!charFrei(arg)&&meta.coins>=k.preis){
+      meta.coins-=k.preis; chars().frei.push(arg); chars().gewaehlt=arg; hinweis=''; await saveMeta();
+    } else hinweis='Dafür reichen die Coins nicht.';
+  }
   else if(a==='reset'){hinweis='';S='reset';}
   else if(a==='resetja'){
     meta={coins:0,perks:{},srs:{},enc:0,runs:0,best:0};
@@ -965,6 +1080,11 @@ app.addEventListener('click',async ev=>{
   else if(a==='go'){ await laufe(+arg); gehe(+arg); }
   else if(a==='ans'){antworte(arg);}
   else if(a==='autoloesen'){G.auto=false;antworte(G.korrekt);}
+  else if(a==='schieben'){
+    if(G.schieben>0){ G.schieben--;
+      G.msg=''; G.feedback=null; naechsteFrage();
+      G.hinweisSchieben=`Frage geschoben. Noch ${G.schieben} ${G.schieben===1?'Verschiebung':'Verschiebungen'}.`; }
+  }
   else if(a==='weiter'){weiter();}
   else if(a==='take'){equip(G.loot[+arg]);naechstesLevel();}
   else if(a==='beenden'){ende(false);}
@@ -1007,6 +1127,13 @@ function benutze(k){
       + (it._ch?` ${it._ch} ${it._ch===1?'Ladung':'Ladungen'} übrig.`:' Damit ist er aufgebraucht.');
 }
 function gehe(i){
+  const aus0=A[G.node]||[];
+  // Der Verschlafende verpasst gelegentlich die Abzweigung und faehrt geradeaus weiter
+  if(G.char==='verschlafen'&&aus0.length&&Math.random()<0.01){
+    const gerade=aus0.findIndex(e=>e.r==='continues_as');
+    if(gerade>=0&&gerade!==i){ i=gerade;
+      G.verschlafen=`Abzweigung verpasst — du fährst geradeaus in ${nm(aus0[gerade].t)} weiter.`; }
+  }
   const e=(A[G.node]||[])[i];
   if(!e){ if(S==='drop'){G.drop=null;S='nav';if(G.node===G.ziel)levelGeschafft();} return; }
   const alt=G.dist[G.node],neu=G.dist[e.t];
@@ -1025,9 +1152,12 @@ function gehe(i){
     render();return;
   }
   G.node=e.t;G.branches++;G.zeige=null;
-  if(alt!=null&&neu>alt)G.msg='Umweg — das Ziel liegt jetzt weiter entfernt.';
-  else if(alt!=null&&neu===alt)G.msg='Seitwärts — die Entfernung zum Ziel bleibt gleich.';
-  if(G.node===G.ziel){levelGeschafft();return;}
+  if(G.char==='mediminister'){ G.instinkt=(G.instinkt||0)+1; G.instinktJetzt=(G.instinkt%2===1); }
+  const vorspann = G.verschlafen ? G.verschlafen+' ' : ''; G.verschlafen=null;
+  if(alt!=null&&neu>alt)G.msg=vorspann+'Umweg — das Ziel liegt jetzt weiter entfernt.';
+  else if(alt!=null&&neu===alt)G.msg=vorspann+'Seitwärts — die Entfernung zum Ziel bleibt gleich.';
+  else if(vorspann)G.msg=vorspann.trim();
+  if(G.node===G.ziel){ if(vorspann)G.msg=vorspann.trim(); levelGeschafft(); return; }
   if(G.branches>=G.nextFight){G.nextFight=G.branches+3+((Math.random()*4)|0);kampf();}
 }
 function levelGeschafft(){
@@ -1043,20 +1173,30 @@ function levelGeschafft(){
   if(G.level>=10&&!G.endlos)return ende(false);
   G.loot=loot();S='loot';
 }
-function naechstesLevel(){G.level++;quest();G.msg='';G.zeige=null;S='nav';}
+function naechstesLevel(){G.level++;quest();G.msg='';G.zeige=null;
+  if(G.char==='mediminister')G.instinktJetzt=false;
+  S='nav';}
 function antworte(k){
-  G.qi++;const q=G.q,ok=k===G.korrekt;G.antwort=k;bewerte(q.id,ok);G.beantwortet=(G.beantwortet||0)+1;
+  const q=G.q,tatsaechlich=k===G.korrekt;G.antwort=k;
+  bewerte(q.id,tatsaechlich);                       // Lernstand zaehlt die echte Antwort
+  G.beantwortet=(G.beantwortet||0)+1;
+  let ok=tatsaechlich, gnade='';   // ok = Wertung, tatsaechlich = Wahrheit
+  if(G.char==='minmaxer'){
+    if(!tatsaechlich&&Math.random()<0.20){ ok=true;  gnade='Durchgerutscht — der Prüfer war gnädig. '; }
+    else if(tatsaechlich&&Math.random()<0.10){ ok=false; gnade='Sitzt eigentlich, wurde aber als falsch gewertet. '; }
+  }
+  G.gnade=gnade; G.gewertet=ok; G.wahrheit=tatsaechlich;
   if(ok){
     G.corrects++;G.streak++;G.lastWrong=false;
     if(G.mon.serie){
       G.stack=(G.stack||0)+1;G.mon.hp-=1;
       if(G.mon.hp<=0)G.kills++;
-      G.feedback=G.mon.hp>0
+      G.feedback=(G.gnade||'')+(G.mon.hp>0
         ? `Richtig. Noch ${G.mon.hp} ${G.mon.hp===1?'Frage':'Fragen'} in Folge.`
-        : 'Drei in Folge — das Kolloquium ist bestanden.';
+        : 'Drei in Folge — das Kolloquium ist bestanden.');
     } else {
       const {d,krit}=schaden();G.stack=(G.stack||0)+1;G.mon.hp-=d;G.kills+= (G.mon.hp<=0?1:0);
-      G.feedback=`${G.wette?'Wette gewonnen. ':''}${krit?'Kritischer Treffer! ':''}${d} Schaden.`;
+      G.feedback=`${G.gnade||''}${G.wette?'Wette gewonnen. ':''}${krit?'Kritischer Treffer! ':''}${d} Schaden.`;
     }
     for(const it of G.items)for(const e of it.e)
       if(e.hook==='onCorrect'&&e.op==='heal'&&(G.corrects%(e.condition?.every_nth_correct||1)===0))
@@ -1078,7 +1218,7 @@ function antworte(k){
     let serieHinweis='';
     if(G.mon.serie&&G.mon.hp<G.mon.max){G.mon.hp=G.mon.max;serieHinweis=' Die Serie beginnt von vorn.';}
     else if(G.mon.serie)G.mon.hp=G.mon.max;
-    G.feedback=`${G.wette?'Wette verloren. ':''}−${l} HP.${serieHinweis}`;
+    G.feedback=`${G.gnade||''}${G.wette?'Wette verloren. ':''}−${l} HP.${serieHinweis}`;
     if(G.hp<=0){
       const rev=G.items.find(i=>i.e.some(e=>e.hook==='onDeath'&&e.op==='revive'&&!i._used));
       if(rev){rev._used=true;const e=rev.e.find(e=>e.op==='revive');G.hp=e.value;
@@ -1089,6 +1229,9 @@ function antworte(k){
 }
 function weiter(){
   if(G.hp<=0){ende(true);return;}
+  if(G.burnout){ G.burnout=false;
+    G.abbruch='Zwanzigmal Vollgas — der Tank ist leer. Burnout, der Run endet hier.';
+    ende(false); return; }
   if(G.mon.hp<=0){
     if(G.finale){G.finale=false;G.finaleBestanden=true;G.mon=null;S='wahl';return;}
     const name=G.mon.n; G.mon=null; G.msg=name+' besiegt.';
