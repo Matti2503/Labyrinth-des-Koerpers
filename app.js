@@ -1,5 +1,5 @@
 /* Leitungsbahnen — Prototyp */
-const BUILD='26';
+const BUILD='28';
 const D=window.GAMEDATA;
 const A={},R={};
 for(const e of D.edges){
@@ -227,8 +227,10 @@ const CHARS={
    x:['20 % Chance, dass eine falsche Antwort trotzdem als richtig gewertet wird.',
       '10 % Chance, dass eine richtige Antwort als falsch gewertet wird.',
       'Der Lernstand zählt die tatsächliche Antwort, nicht das Würfelergebnis.'],
-   figur:['<path d="M17 21 q13 -22 26 0"/>','<path d="M17 21 l-2 5 M43 21 l2 5"/>',
-          '<path d="M24 26 q6 4 12 0"/>']},
+   figur:['<ellipse cx="25.6" cy="15" rx="4.1" ry="3.2" fill="var(--tinte)"/>',
+          '<ellipse cx="34.4" cy="15" rx="4.1" ry="3.2" fill="var(--tinte)"/>',
+          '<path d="M29.4 14.4 q0.6 -1 1.2 0"/>',
+          '<path d="M21.6 13.8 l-3 -1.6 M38.4 13.8 l3 -1.6"/>']},
  verschlafen:{n:'Der Verschlafende',spruch:'Nimmt sich immer ein bisschen mehr Zeit.',preis:90,
    x:['Fünfmal pro Run kann eine Frage mit „Physikum schieben“ übersprungen werden.',
       'An jeder Abzweigung 1 % Chance, das Abbiegen zu verschlafen — dann geht es geradeaus weiter.'],

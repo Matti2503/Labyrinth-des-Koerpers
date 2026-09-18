@@ -10,7 +10,10 @@
   --kapillar:#8A4E6B;
   --kammer:#3F5470;
   --gruen:#3F6B45;
-  --schrift-hand:"Bradley Hand","Chalkboard SE","Segoe Print","Comic Sans MS",cursive;
+  /* Reihenfolge ist entscheidend: iOS findet "Bradley Hand" und bleibt unveraendert.
+     Geraete ohne diese Schrift greifen auf die nachgeladene "Patrick Hand" zurueck,
+     die dem Schriftbild am naechsten kommt. */
+  --schrift-hand:"Bradley Hand","Chalkboard SE","Patrick Hand","Caveat","Segoe Print","Comic Sans MS",cursive;
   --schrift-klar:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   --schrift:var(--schrift-hand);
   --fs:1;
