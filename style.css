@@ -154,7 +154,9 @@ body.eink svg.rf path,body.eink .gangsvg .wand{stroke-width:2;opacity:1}
 .chip-nah{border-style:dashed;font-weight:700}
 
 /* Regler fuer die Schriftgroesse */
-.regler{display:flex;align-items:center;gap:12px;margin-top:10px}
+.regler{display:flex;align-items:center;gap:12px;margin-top:10px;min-height:52px}
+/* Feste Breite und Hoehe, damit der Regler beim Ziehen nicht wandert */
+.probeA{flex:0 0 44px;text-align:center;line-height:1;overflow:visible;
+  font-family:var(--schrift);color:var(--tinte)}
 .regler input[type=range]{flex:1 1 auto;accent-color:var(--tinte);height:34px}
 .regler .wert{font-variant-numeric:tabular-nums;min-width:4.2em;text-align:right}
-.probe{margin-top:8px;padding-top:8px;border-top:1.5px dashed rgba(43,74,139,.3)}

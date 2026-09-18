@@ -1,5 +1,5 @@
 /* Leitungsbahnen — Prototyp */
-const BUILD='30';
+const BUILD='31';
 const D=window.GAMEDATA;
 const A={},R={};
 for(const e of D.edges){
@@ -875,11 +875,12 @@ function render(){
       ${box(`<p>Schriftgröße</p>
         <p class="klein">Skaliert die gesamte Oberfläche mit, nicht nur den Fließtext.</p>
         <div class="regler">
+          <span class="probeA" id="ptprobe" style="font-size:${o.pt}pt" aria-hidden="true">A</span>
           <input id="ptregler" type="range" min="${PT_MIN}" max="${PT_MAX}" step="1" value="${o.pt}"
                  aria-label="Schriftgröße in Punkt">
           <span class="wert" id="ptwert">${o.pt} pt</span>
         </div>
-        <div class="probe"><span class="lat">Arteria vertebralis</span> — so liest es sich.</div>`,'o2')}
+        <p class="klein">Der Buchstabe zeigt die Größe sofort. Die Oberfläche zieht nach, sobald du loslässt.</p>`,'o2')}
       ${box(`<p>E-Ink-Modus</p>
         <p class="klein">Schaltet alle Animationen ab, entfernt die Papierstruktur und zeichnet die Linien
         kräftiger. Gedacht für E-Ink-Displays, hilft aber auch bei Bewegungsempfindlichkeit.</p>
@@ -1035,12 +1036,14 @@ function instinktZiel(){
   return best;
 }
 function reglerVerdrahten(){
-  const r=document.getElementById('ptregler'), w=document.getElementById('ptwert');
+  const r=document.getElementById('ptregler'), w=document.getElementById('ptwert'),
+        p=document.getElementById('ptprobe');
   if(!r)return;
-  // Waehrend des Ziehens sofort sichtbar, gespeichert wird erst beim Loslassen.
+  /* Waehrend des Ziehens aendert sich nur der Beispielbuchstabe. Wuerde die
+     ganze Oberflaeche mitwachsen, verschoebe sich der Regler unter dem Finger. */
   r.addEventListener('input',()=>{
     const v=Math.min(PT_MAX,Math.max(PT_MIN,parseInt(r.value,10)||PT_STD));
-    document.documentElement.style.setProperty('--pt',String(v));
+    if(p)p.style.fontSize=v+'pt';
     if(w)w.textContent=v+' pt';
   });
   r.addEventListener('change',async()=>{
