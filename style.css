@@ -1,3 +1,11 @@
+@font-face{
+  font-family:"Patrick Hand";
+  src:url("./PatrickHand-Regular.ttf") format("truetype");
+  font-weight:400; font-style:normal; font-display:swap;
+  size-adjust:115%;   /* gleicht die kleinere Zeichenhoehe aus */
+}
+/* Fehlt die Datei, greift einfach die naechste Schrift der Reihenfolge. */
+
 :root{
   --papier:#FAF9F5;
   --tinte:#2B4A8B;
@@ -13,16 +21,16 @@
   /* Reihenfolge ist entscheidend: iOS findet "Bradley Hand" und bleibt unveraendert.
      Geraete ohne diese Schrift greifen auf die nachgeladene "Patrick Hand" zurueck,
      die dem Schriftbild am naechsten kommt. */
-  --schrift-hand:"Bradley Hand","Chalkboard SE","Patrick Hand","Caveat","Segoe Print","Comic Sans MS",cursive;
+  --schrift-hand:"Bradley Hand","Chalkboard SE","Patrick Hand","Segoe Print","Comic Sans MS",cursive;
   --schrift-klar:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   --schrift:var(--schrift-hand);
-  --fs:1;
+  --pt:13;        /* Schriftgroesse in Punkt, ueber den Regler einstellbar */
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%}
 body{
   background:var(--papier);color:var(--tinte);
-  font-family:var(--schrift);font-size:calc(17px * var(--fs));line-height:1.5;
+  font-family:var(--schrift);font-size:calc(var(--pt) * 1pt);line-height:1.5;
   overscroll-behavior:none;
 }
 #paper{position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5;
@@ -117,8 +125,6 @@ hr{border:0;border-top:1.5px dashed rgba(43,74,139,.3);margin:16px 0}
 /* ---------- Einstellungen ---------- */
 body.klar{--schrift:var(--schrift-klar);letter-spacing:0}
 body.klar .lat{font-style:italic}
-body.fs-gross{--fs:1.15}
-body.fs-sehrgross{--fs:1.32}
 
 /* E-Ink: keine Bewegung, kein Papierrauschen, hoeherer Kontrast */
 body.eink #paper{display:none}
@@ -146,3 +152,9 @@ body.eink svg.rf path,body.eink .gangsvg .wand{stroke-width:2;opacity:1}
 /* Tags, die zur eigenen Sammlung gehoeren */
 .chip-meins{border-width:2px;font-weight:700}
 .chip-nah{border-style:dashed;font-weight:700}
+
+/* Regler fuer die Schriftgroesse */
+.regler{display:flex;align-items:center;gap:12px;margin-top:10px}
+.regler input[type=range]{flex:1 1 auto;accent-color:var(--tinte);height:34px}
+.regler .wert{font-variant-numeric:tabular-nums;min-width:4.2em;text-align:right}
+.probe{margin-top:8px;padding-top:8px;border-top:1.5px dashed rgba(43,74,139,.3)}

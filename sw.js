@@ -1,12 +1,17 @@
 /* Netzwerk zuerst, Cache nur als Rueckfallebene.
    Damit ist eine neue Fassung sofort sichtbar, sobald sie online liegt,
    und die App bleibt trotzdem offline lauffaehig. */
-const CACHE='leitungsbahnen-v28';
+const CACHE='leitungsbahnen-v30';
 const FILES=['./','./index.html','./style.css','./app.js','./gamedata.js',
              './manifest.webmanifest','./icon-192.png','./icon-512.png'];
+// Optional: fehlt die Datei, soll die Installation trotzdem gelingen.
+const OPTIONAL=['./PatrickHand-Regular.ttf'];
 
 self.addEventListener('install',e=>{
-  e.waitUntil(caches.open(CACHE).then(c=>c.addAll(FILES)).then(()=>self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE)
+    .then(c=>c.addAll(FILES).then(()=>
+      Promise.allSettled(OPTIONAL.map(f=>c.add(f)))))
+    .then(()=>self.skipWaiting()));
 });
 self.addEventListener('activate',e=>{
   e.waitUntil(caches.keys()
@@ -15,15 +20,12 @@ self.addEventListener('activate',e=>{
 });
 self.addEventListener('message',e=>{ if(e.data==='update') self.skipWaiting(); });
 
-const SCHRIFTHOSTS=['fonts.googleapis.com','fonts.gstatic.com'];
-
 self.addEventListener('fetch',e=>{
   const r=e.request;
   if(r.method!=='GET') return;
   const u=new URL(r.url);
-  // Schriften liegen auf fremden Servern: erst aus dem Cache, damit die App
-  // auch offline im gewohnten Schriftbild laeuft.
-  if(SCHRIFTHOSTS.includes(u.host)){
+  // Schriftdateien aendern sich nie: direkt aus dem Cache ausliefern.
+  if(/\.(ttf|woff2?|otf)$/i.test(u.pathname)){
     e.respondWith(caches.match(r).then(treffer=>{
       if(treffer) return treffer;
       return fetch(r).then(res=>{

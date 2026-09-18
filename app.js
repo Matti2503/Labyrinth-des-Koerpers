@@ -1,5 +1,5 @@
 /* Leitungsbahnen — Prototyp */
-const BUILD='28';
+const BUILD='30';
 const D=window.GAMEDATA;
 const A={},R={};
 for(const e of D.edges){
@@ -154,19 +154,29 @@ const STUFEN={
 };
 const stufeVon=id=>STUFEN[id]||STUFEN.experte;
 const runStufe=()=>stufeVon(G&&G.stufe ? G.stufe : opt().stufe);
-const OPT_STD={schrift:'hand',groesse:'normal',eink:false,stufe:'experte'};
+const PT_MIN=9, PT_MAX=24, PT_STD=13;
+const OPT_STD={schrift:'hand',pt:PT_STD,eink:false,stufe:'experte'};
 let meta={coins:0,perks:{},srs:{},enc:0,runs:0,best:0,opt:{...OPT_STD},
           chars:{frei:['normalo'],gewaehlt:'normalo'}};
 function chars(){ meta.chars={frei:['normalo'],gewaehlt:'normalo',...(meta.chars||{})};
   if(!meta.chars.frei.includes('normalo'))meta.chars.frei.push('normalo');
   if(!charFrei(meta.chars.gewaehlt))meta.chars.gewaehlt='normalo';
   return meta.chars; }
-function opt(){ meta.opt={...OPT_STD,...(meta.opt||{})}; return meta.opt; }
+function opt(){
+  const roh=meta.opt||{};
+  const o={...OPT_STD,...roh};
+  // Uebernahme der frueheren drei Stufen: nur wenn kein Punktwert gespeichert ist
+  if(roh.pt==null||isNaN(roh.pt))
+    o.pt={normal:13,gross:15,sehrgross:17}[roh.groesse] ?? PT_STD;
+  delete o.groesse;
+  o.pt=Math.min(PT_MAX,Math.max(PT_MIN,Math.round(o.pt)));
+  meta.opt=o;
+  return o;
+}
 function setzeOptionen(){
   const o=opt(), b=document.body; if(!b)return;
   b.classList.toggle('klar', o.schrift==='klar');
-  b.classList.toggle('fs-gross', o.groesse==='gross');
-  b.classList.toggle('fs-sehrgross', o.groesse==='sehrgross');
+  const w=document.documentElement; if(w&&w.style)w.style.setProperty('--pt', String(o.pt));
   b.classList.toggle('eink', !!o.eink);
 }
 const eink=()=>!!opt().eink;
@@ -864,7 +874,12 @@ function render(){
         ${wahl('schrift',[['hand','Handschrift'],['klar','Klar lesbar']])}`,'o1')}
       ${box(`<p>Schriftgröße</p>
         <p class="klein">Skaliert die gesamte Oberfläche mit, nicht nur den Fließtext.</p>
-        ${wahl('groesse',[['normal','Normal'],['gross','Groß'],['sehrgross','Sehr groß']])}`,'o2')}
+        <div class="regler">
+          <input id="ptregler" type="range" min="${PT_MIN}" max="${PT_MAX}" step="1" value="${o.pt}"
+                 aria-label="Schriftgröße in Punkt">
+          <span class="wert" id="ptwert">${o.pt} pt</span>
+        </div>
+        <div class="probe"><span class="lat">Arteria vertebralis</span> — so liest es sich.</div>`,'o2')}
       ${box(`<p>E-Ink-Modus</p>
         <p class="klein">Schaltet alle Animationen ab, entfernt die Papierstruktur und zeichnet die Linien
         kräftiger. Gedacht für E-Ink-Displays, hilft aber auch bei Bewegungsempfindlichkeit.</p>
@@ -941,6 +956,7 @@ function render(){
   app.innerHTML=`<div class="${eink()?'':'fade'}">${h}</div>`;
   frames();
   if(S==='nav')zeichneGang();
+  if(S==='opt')reglerVerdrahten();
   window.scrollTo(0,0);
 }
 function setUebersicht(){
@@ -1017,6 +1033,20 @@ function instinktZiel(){
   const aus=A[G.node]||[]; let best=0,bd=Infinity;
   aus.forEach((e,i)=>{const d=G.dist[e.t]; if(d!=null&&d<bd){bd=d;best=i;}});
   return best;
+}
+function reglerVerdrahten(){
+  const r=document.getElementById('ptregler'), w=document.getElementById('ptwert');
+  if(!r)return;
+  // Waehrend des Ziehens sofort sichtbar, gespeichert wird erst beim Loslassen.
+  r.addEventListener('input',()=>{
+    const v=Math.min(PT_MAX,Math.max(PT_MIN,parseInt(r.value,10)||PT_STD));
+    document.documentElement.style.setProperty('--pt',String(v));
+    if(w)w.textContent=v+' pt';
+  });
+  r.addEventListener('change',async()=>{
+    opt().pt=Math.min(PT_MAX,Math.max(PT_MIN,parseInt(r.value,10)||PT_STD));
+    setzeOptionen(); await saveMeta(); repaint();
+  });
 }
 function rel(e){
   const m={branch_of:'Ast',continues_as:'Fortsetzung',drains_into:'mündet in',
