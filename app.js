@@ -1,5 +1,5 @@
 /* Leitungsbahnen — Prototyp */
-const BUILD='31';
+const BUILD='32';
 const D=window.GAMEDATA;
 const A={},R={};
 for(const e of D.edges){
@@ -233,7 +233,7 @@ const CHARS={
  normalo:{n:'Normalo',spruch:'Macht sein Ding.',preis:0,
    x:['Keine Sonderwirkung. Der Maßstab für alles andere.'],
    figur:[]},
- minmaxer:{n:'Min-Maxer',spruch:'Lernt immer erst drei Tage vor der Prüfung.',preis:70,
+ minmaxer:{n:'Min-Maxer',spruch:'Lernt immer erst drei Tage vor der Prüfung.',preis:20,
    x:['20 % Chance, dass eine falsche Antwort trotzdem als richtig gewertet wird.',
       '10 % Chance, dass eine richtige Antwort als falsch gewertet wird.',
       'Der Lernstand zählt die tatsächliche Antwort, nicht das Würfelergebnis.'],
@@ -241,16 +241,16 @@ const CHARS={
           '<ellipse cx="34.4" cy="15" rx="4.1" ry="3.2" fill="var(--tinte)"/>',
           '<path d="M29.4 14.4 q0.6 -1 1.2 0"/>',
           '<path d="M21.6 13.8 l-3 -1.6 M38.4 13.8 l3 -1.6"/>']},
- verschlafen:{n:'Der Verschlafende',spruch:'Nimmt sich immer ein bisschen mehr Zeit.',preis:90,
+ verschlafen:{n:'Der Verschlafende',spruch:'Nimmt sich immer ein bisschen mehr Zeit.',preis:30,
    x:['Fünfmal pro Run kann eine Frage mit „Physikum schieben“ übersprungen werden.',
       'An jeder Abzweigung 1 % Chance, das Abbiegen zu verschlafen — dann geht es geradeaus weiter.'],
    figur:['<path d="M21 11 q9 -14 19 -1 l7 -2 q2 5 -4 6"/>','<circle cx="49" cy="14" r="2.6"/>',
           '<path d="M45 3 h7 l-7 8 h7"/>']},
- highperformer:{n:'High-Performer',spruch:'Gibt Vollgas, bis der Tank alle ist.',preis:110,
+ highperformer:{n:'High-Performer',spruch:'Gibt Vollgas, bis der Tank alle ist.',preis:40,
    x:['15 % Chance, dass eine Frage sich von selbst löst: „zu einfach, wusste ich schon“.',
       'Der Effekt hat 20 Ladungen. Ist die letzte verbraucht, endet der Run im Burnout.'],
    figur:['<path d="M20 14 h20"/>','<path d="M43 9 l5 -4 M45 15 l6 -2 M42 21 l5 1"/>']},
- mediminister:{n:'Medi-Minister',spruch:'Alter, hab ich gestern gebechert. Vielleicht hätten sechs Bier gereicht.',preis:130,
+ mediminister:{n:'Medi-Minister',spruch:'Alter, hab ich gestern gebechert. Vielleicht hätten sechs Bier gereicht.',preis:55,
    x:['Jede zweite Abzweigung findest du instinktiv richtig — ohne nachzudenken.',
       'Dafür sind in Fragen und Antworten die Buchstaben jedes Wortes durcheinander; nur der erste und der letzte bleiben stehen.'],
    figur:['<path d="M23 8 l7 -11 l7 11 Z"/>','<path d="M44 36 h9 v10 h-9Z M53 39 h3 v4 h-3"/>',
@@ -304,8 +304,13 @@ function equip(it){
   if(it.g.includes('unialltag')&&tagN('unialltag')===3)G.rerolls+=1;
   if(it.g.includes('medimeister')&&tagN('medimeister')===3)G.luck+=0.15;
 }
+/* Buchfuehrung je Item: flach addierte Anteile und multiplikative Faktoren
+   werden getrennt notiert. Daraus laesst sich der Beitrag eines Items exakt
+   als Differenz zum Ergebnis ohne dieses Item ausrechnen. */
+function statsFuer(id){ return (G.stats||(G.stats={}))[id] ||= {dmg:0,hp:0,aus:0}; }
 function schaden(){
   let flat=G.dmgBase,mult=1;
+  const jeFlat={}, jeMult={};
   for(const it of G.items)for(const e of it.e){
     if(e.hook!=='onCorrect')continue;
     const c=e.condition||{};
@@ -318,14 +323,18 @@ function schaden(){
     if(c.subject&&G.q?.f!==c.subject)continue;
     if(c.every_nth_correct!=null&&(G.corrects+1)%c.every_nth_correct!==0)continue;
     if(c.difficulty_min!=null&&(G.q?.d??3)<c.difficulty_min)continue;
-    if(e.op==='damage_add')flat+=e.value;
-    else if(e.op==='damage_mult')mult*=e.value;
+    if(c.after_wrong&&!G.lastWrong)continue;
+    if(c.schon_falsch&&!((meta.srs[G.q?.id]||{}).w>0))continue;
+    if(e.op==='damage_add'){flat+=e.value; jeFlat[it.id]=(jeFlat[it.id]||0)+e.value;}
+    else if(e.op==='damage_mult'){mult*=e.value; jeMult[it.id]=(jeMult[it.id]||1)*e.value;}
     else if(e.op==='damage_mult_stacking'){
-      mult*=Math.min(Math.pow(e.value,G.stack||0), e.cap??99);
+      const f=Math.min(Math.pow(e.value,G.stack||0), e.cap??99);
+      mult*=f; jeMult[it.id]=(jeMult[it.id]||1)*f;
     }
     else if(e.op==='damage_add_scaling'){
       const m={monsters_defeated:G.kills,level:G.level,missing_max_hp_per_10:Math.max(0,((100-G.hpMax)/10)|0)}[e.scales_with]||0;
-      flat+=Math.min(e.value*m,e.cap??999);
+      const v=Math.min(e.value*m,e.cap??999);
+      flat+=v; jeFlat[it.id]=(jeFlat[it.id]||0)+v;
     }
   }
   if(tagN('chirurgie')>=3)mult*=1.10;
@@ -341,26 +350,53 @@ function schaden(){
     const n=e.condition?.every_nth_question;
     if(n&&((G.fragenGesamt||0)+1)%n===0)krit=true;
   }
+  const kf=krit?(G.critMult+(tagN('chirurgie')>=5?.5:0)):1;
+  let kritExtra={};
   if(krit){
-    d=Math.round(d*(G.critMult+(tagN('chirurgie')>=5?.5:0)));
+    d=Math.round(d*kf);
     for(const it of G.items)for(const e of it.e)
-      if(e.hook==='onCrit'&&e.op==='damage_add')d+=e.value;
+      if(e.hook==='onCrit'&&e.op==='damage_add'){d+=e.value; kritExtra[it.id]=(kritExtra[it.id]||0)+e.value;}
   }
-  return{d,krit};
+  const kritSumme=Object.values(kritExtra).reduce((x,y)=>x+y,0);
+  return{d,krit,anteile:()=>{
+    // Beitrag eines Items = Ergebnis mit ihm minus Ergebnis ohne es
+    const out={};
+    const ids=new Set([...Object.keys(jeFlat),...Object.keys(jeMult),...Object.keys(kritExtra)]);
+    for(const id of ids){
+      let ohne=Math.max(1,Math.round((flat-(jeFlat[id]||0))*(mult/(jeMult[id]||1))));
+      if(krit)ohne=Math.round(ohne*kf);
+      ohne+=kritSumme-(kritExtra[id]||0);
+      out[id]=d-ohne;
+    }
+    return out;
+  }};
 }
-function verlust(){
-  let l=runStufe().hpVerlust,mult=1;
+function verlust(anteile){
+  const basis=runStufe().hpVerlust;
+  let l=basis,mult=1;
+  const jeSet={}, jeMult={};
   for(const it of G.items)for(const e of it.e){
     if(e.hook!=='onWrong')continue;
     const c=e.condition||{};
     if(c.first_wrong_in_fight&&G.wrongFight)continue;
     if(c.question_index!=null&&c.question_index!==G.qi)continue;
-    if(e.op==='hp_loss_set')l=e.value;
-    else if(e.op==='damage_taken_mult')mult*=e.value;
+    if(c.hp_percent_below!=null&&G.hp/G.hpMax>=c.hp_percent_below)continue;
+    if(e.op==='hp_loss_set'){l=e.value; jeSet[it.id]=e.value;}
+    else if(e.op==='damage_taken_mult'){mult*=e.value; jeMult[it.id]=(jeMult[it.id]||1)*e.value;}
   }
   if(tagN('notaufnahme')>=5)mult*=.85;
   if(G.wette)mult*=2;
-  return Math.max(0,Math.round(l*mult));
+  const erg=Math.max(0,Math.round(l*mult));
+  if(anteile){
+    const out={};
+    for(const id of new Set([...Object.keys(jeSet),...Object.keys(jeMult)])){
+      const ohneL=(jeSet[id]!=null)?basis:l;
+      const ohne=Math.max(0,Math.round(ohneL*(mult/(jeMult[id]||1))));
+      out[id]=ohne-erg;          // positiv = gespart
+    }
+    anteile.werte=out;
+  }
+  return erg;
 }
 function versteckt(q){
   if(G.items.some(i=>i.e.some(e=>e.op==='disable_op')))return 0;
@@ -562,14 +598,6 @@ function naechsteFrage(){
   G.qi=(G.qi==null?-1:G.qi)+1;   // 0 = erste Frage des Kampfes
   G.hinweisSchieben=null;
   G.fragenGesamt=(G.fragenGesamt||0)+1;
-  // Themenhinweis
-  G.tipp=null;
-  for(const it of G.items)for(const e of it.e){
-    if(e.hook!=='onQuestionStart'||e.op!=='hint')continue;
-    const c=e.condition||{};
-    if(c.chance!=null&&!luck(c.chance))continue;
-    G.tipp=(q.t&&q.t.length)?q.t.join(', '):q.f;
-  }
   // Medi-Minister: Buchstaben im Wortinneren verwuerfeln
   if(G.char==='mediminister'){
     G.anzeigeStamm=anagramm(q.s);
@@ -749,7 +777,6 @@ function render(){
         <p>${esc(G.anzeigeStamm||q.s)}</p>
         ${G.anzeigeStamm?`<p class="klein">Die Buchstaben tanzen. Erster und letzter bleiben stehen.</p>`:''}`,'q'+q.id);
     if(G.hinweisSchieben) h+=box(`<p class="klein">${esc(G.hinweisSchieben)}</p>`,'gesch','duenn');
-    if(G.tipp) h+=box(`<p class="klein">Hinweis: ${esc(G.tipp)}</p>`,'tipp','duenn');
     if(G.auto&&G.antwort===null){
       h+=box(`<p class="richtig">${esc(G.auto)}: Die Frage löst sich von selbst — voller Schaden ohne Antwort.</p>`,'auto','duenn')
         +btn('Durchziehen','autoloesen');
@@ -775,7 +802,8 @@ function render(){
      +G.loot.map((i,k)=>`<div class="box duenn ${rk(i)}" data-rough="take${k}"><button data-act="take" data-arg="${k}">
         ${esc(i.n)} <span class="selten">· ${esc(rlabel(i))}</span><br><span class="klein">${esc(i.x)}</span>
         <div class="chips">${tagChips(i)}</div></button></div>`).join('')
-     +btn(`Neu würfeln (${G.rerolls})`,'reroll','',G.rerolls>0?'':'disabled');
+     +btn(`Neu würfeln (${G.rerolls})`,'reroll','',G.rerolls>0?'':'disabled')
+     +(G.items.length?btn(`Inventar <span class="klein">· ${G.items.length} ${G.items.length===1?'Item':'Items'} mit Bilanz</span>`,'inv'):'');
   }
   else if(S==='inv'){
     h=kopf()+`<h2>Inventar</h2>`
@@ -783,7 +811,7 @@ function render(){
         `<div class="zeile"><span>${esc(i.n)}</span><span class="selten">${esc(rlabel(i))}</span></div>
          <p class="klein">${esc(i.x)}</p>
          ${i._ch!=null?`<p class="klein">${i._ch>0?`${i._ch} ${i._ch===1?'Ladung':'Ladungen'} übrig`:'aufgebraucht'}</p>`:''}
-         <div class="chips">${i.g.map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div>`,'i'+i.id,'duenn '+rk(i))).join('')
+         ${bilanz(i)}<div class="chips">${i.g.map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div>`,'i'+i.id,'duenn '+rk(i))).join('')
         : box(`<p class="klein">Noch keine Items. Das erste gibt es nach der ersten Quest.</p>`,'leer','duenn'))
      +setUebersicht()
      +btn('Zurück','back');
@@ -793,7 +821,8 @@ function render(){
      +G.drop.map((i,k)=>`<div class="box duenn ${rk(i)}" data-rough="drop${k}"><button data-act="takedrop" data-arg="${k}">
         ${esc(i.n)} <span class="selten">· ${esc(rlabel(i))}</span><br><span class="klein">${esc(i.x)}</span>
         <div class="chips">${tagChips(i)}</div></button></div>`).join('')
-     +btn('Liegen lassen','takedrop','-1');
+     +btn('Liegen lassen','takedrop','-1')
+     +(G.items.length?btn(`Inventar <span class="klein">· ${G.items.length}</span>`,'inv'):'');
   }
   else if(S==='export'){
     const code=codeAus(meta);
@@ -914,7 +943,7 @@ function render(){
          `<div class="zeile"><span>${esc(i.n)}</span><span class="selten">${esc(rlabel(i))}</span></div>
           <p class="klein">${esc(i.x)}</p>
           ${i._ch!=null?`<p class="klein">${i._ch>0?`${i._ch} ${i._ch===1?'Ladung':'Ladungen'} übrig`:'aufgebraucht'}</p>`:''}
-          <div class="chips">${i.g.map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div>`,'e'+i.id,'duenn '+rk(i))).join('')
+          ${bilanz(i)}<div class="chips">${i.g.map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div>`,'e'+i.id,'duenn '+rk(i))).join('')
         : box(`<p class="klein">Dieser Run endete ohne Items.</p>`,'keine','duenn')}
       ${setUebersicht()}
       ${btn('Neuer Run','start')}${btn('Perks kaufen','shop')}`;
@@ -959,6 +988,16 @@ function render(){
   if(S==='nav')zeichneGang();
   if(S==='opt')reglerVerdrahten();
   window.scrollTo(0,0);
+}
+function bilanz(i){
+  const st=(G.stats||{})[i.id];
+  if(!st||(!st.dmg&&!st.hp&&!st.aus))return '<p class="klein">Noch nichts beigetragen.</p>';
+  const teile=[];
+  if(st.dmg)teile.push(`${Math.round(st.dmg)} Schaden`);
+  if(st.hp>0)teile.push(`${Math.round(st.hp)} HP gerettet`);
+  if(st.hp<0)teile.push(`${Math.round(-st.hp)} HP gekostet`);
+  if(st.aus)teile.push(`${st.aus}× ausgelöst`);
+  return `<p class="klein mono">${teile.join(' · ')}</p>`;
 }
 function setUebersicht(){
   const zeilen=SETTAGS.map(t=>{
@@ -1156,7 +1195,7 @@ function benutze(k){
   let best=-1,bd=Infinity;
   aus.forEach((e,i)=>{const dd=G.dist[e.t];if(dd!=null&&dd<bd){bd=dd;best=i;}});
   if(best<0){G.msg='Von hier führt ohnehin kein Weg zum Ziel — die Ladung bleibt erhalten.';return;}
-  it._ch--;
+  it._ch--; statsFuer(it.id).aus++;
   G.zeige=best;
   G.msg=`${esc(it.n)}: der Weg führt über <span class="lat">${esc(nm(aus[best].t))}</span>.`
       + (it._ch?` ${it._ch} ${it._ch===1?'Ladung':'Ladungen'} übrig.`:' Damit ist er aufgebraucht.');
@@ -1199,7 +1238,8 @@ function levelGeschafft(){
   G.hp=Math.min(G.hpMax,G.hp+8);
   for(const it of G.items)for(const e of it.e){
     if(e.hook!=='onLevelUp')continue;
-    if(e.op==='heal')G.hp=Math.min(G.hpMax,G.hp+e.value);
+    if(e.op==='heal'){const vor=G.hp;G.hp=Math.min(G.hpMax,G.hp+e.value);
+      const st=statsFuer(it.id); st.hp+=G.hp-vor; st.aus++;}
     if(e.op==='hp_max_add'){G.hpMax+=e.value;G.hp+=e.value;}
     if(e.op==='coins_add')G.coinAdd=Math.min((G.coinAdd||0)+e.value,e.cap??999);
   }
@@ -1230,12 +1270,16 @@ function antworte(k){
         ? `Richtig. Noch ${G.mon.hp} ${G.mon.hp===1?'Frage':'Fragen'} in Folge.`
         : 'Drei in Folge — das Kolloquium ist bestanden.');
     } else {
-      const {d,krit}=schaden();G.stack=(G.stack||0)+1;G.mon.hp-=d;G.kills+= (G.mon.hp<=0?1:0);
+      const erg=schaden(); const d=erg.d, krit=erg.krit;
+      for(const [id,v] of Object.entries(erg.anteile())){const st=statsFuer(id); st.dmg+=v; if(v)st.aus++;}
+      G.stack=(G.stack||0)+1;G.mon.hp-=d;G.kills+= (G.mon.hp<=0?1:0);
       G.feedback=`${G.gnade||''}${G.wette?'Wette gewonnen. ':''}${krit?'Kritischer Treffer! ':''}${d} Schaden.`;
     }
     for(const it of G.items)for(const e of it.e)
-      if(e.hook==='onCorrect'&&e.op==='heal'&&(G.corrects%(e.condition?.every_nth_correct||1)===0))
-        G.hp=Math.min(G.hpMax,G.hp+e.value);
+      if(e.hook==='onCorrect'&&e.op==='heal'&&(G.corrects%(e.condition?.every_nth_correct||1)===0)){
+        const vor=G.hp; G.hp=Math.min(G.hpMax,G.hp+e.value);
+        const st=statsFuer(it.id); st.hp+=G.hp-vor; st.aus++;
+      }
   }else{
     G.streak=0;G.lastWrong=true;G.stack=0;
     // Erster Fehler pro Kampf kann in einen Teiltreffer umgewandelt werden
@@ -1249,7 +1293,9 @@ function antworte(k){
       G.feedback=`${teil[1]} rettet dich: kein HP-Verlust, ${halb} Schaden.`;
       saveMeta();return;
     }
-    const l=verlust();G.wrongFight=true;G.hp-=l;
+    const buch={}; const l=verlust(buch);
+    for(const [id,v] of Object.entries(buch.werte||{})){const st=statsFuer(id); st.hp+=v; if(v)st.aus++;}
+    G.wrongFight=true;G.hp-=l;
     let serieHinweis='';
     if(G.mon.serie&&G.mon.hp<G.mon.max){G.mon.hp=G.mon.max;serieHinweis=' Die Serie beginnt von vorn.';}
     else if(G.mon.serie)G.mon.hp=G.mon.max;
@@ -1257,6 +1303,7 @@ function antworte(k){
     if(G.hp<=0){
       const rev=G.items.find(i=>i.e.some(e=>e.hook==='onDeath'&&e.op==='revive'&&!i._used));
       if(rev){rev._used=true;const e=rev.e.find(e=>e.op==='revive');G.hp=e.value;
+        const st=statsFuer(rev.id); st.hp+=e.value; st.aus++;
         G.feedback+=` ${rev.n} greift ein — du machst mit ${e.value} HP weiter.`;}
     }
   }
