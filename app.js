@@ -1,5 +1,5 @@
 /* Leitungsbahnen — Prototyp */
-const BUILD='32';
+const BUILD='34';
 const D=window.GAMEDATA;
 const A={},R={};
 for(const e of D.edges){
@@ -145,12 +145,12 @@ const PERKS=[
  {id:'srs',n:'Wiederholungsdrill',x:'Fehlerfragen kommen öfter',c:45,max:1},
  {id:'opt',n:'Semesterferien',x:'5 Item-Optionen statt 4',c:60,max:1}];
 const STUFEN={
- laie:   {n:'Laie',    schaden:12, hpVerlust:6,  wahl:5, rerolls:1, krit:1.0, coins:0.8,
-          fragen:'leicht', x:'Mehr Schaden, weniger HP-Verlust, fünf Items zur Wahl. Leichtere Fragen. 20 % weniger Coins.'},
- experte:{n:'Experte', schaden:10, hpVerlust:8,  wahl:4, rerolls:0, krit:1.0, coins:1.0,
+ laie:   {n:'Laie',    schaden:12, hpVerlust:6,  wahl:5, rerolls:1, krit:1.0, coins:0.8, eskal:0.03,
+          fragen:'leicht', x:'Mehr Schaden, weniger HP-Verlust, fünf Items zur Wahl. Leichtere Fragen. Fehler werden nur langsam teurer. 20 % weniger Coins.'},
+ experte:{n:'Experte', schaden:10, hpVerlust:8,  wahl:4, rerolls:0, krit:1.0, coins:1.0, eskal:0.06,
           fragen:'gemischt', x:'Die ausgewogene Einstellung. Vier Items zur Wahl, Coins unverändert.'},
- prof:   {n:'Prof',    schaden:9,  hpVerlust:11, wahl:3, rerolls:0, krit:1.4, coins:1.5,
-          fragen:'schwer', x:'Harte Fehler, nur drei Items zur Wahl, schwerere Fragen — dafür 40 % mehr Krit-Bonus und die Hälfte mehr Coins.'}
+ prof:   {n:'Prof',    schaden:9,  hpVerlust:11, wahl:3, rerolls:0, krit:1.4, coins:1.5, eskal:0.11,
+          fragen:'schwer', x:'Harte Fehler, die mit jedem Level deutlich teurer werden. Nur drei Items zur Wahl, schwerere Fragen — dafür 40 % mehr Krit-Bonus und die Hälfte mehr Coins.'}
 };
 const stufeVon=id=>STUFEN[id]||STUFEN.experte;
 const runStufe=()=>stufeVon(G&&G.stufe ? G.stufe : opt().stufe);
@@ -207,6 +207,7 @@ function quest(){
     const cand=Object.keys(dist).filter(k=>dist[k]>=minH&&dist[k]<=maxH&&(A[k]||[]).length>1);
     if(!cand.length)continue;
     G.ziel=ziel;G.dist=dist;G.node=cand[(Math.random()*cand.length)|0];G.start=G.node;G.hops=dist[G.node];
+    G.verirrt=false;
     return;
   }
   // Notfallrueckfall, falls im gewuenschten Fenster nichts gefunden wurde
@@ -218,6 +219,7 @@ function quest(){
     const cand=Object.keys(dist).filter(k=>dist[k]>=Math.max(3,minH-3)&&(A[k]||[]).length>1);
     if(!cand.length)continue;
     G.ziel=ziel;G.dist=dist;G.node=cand[(Math.random()*cand.length)|0];G.start=G.node;G.hops=dist[G.node];
+    G.verirrt=false;
     return;
   }
   G.ziel=ids[0];G.node=ids[0];G.dist={};G.hops=0;
@@ -371,8 +373,14 @@ function schaden(){
     return out;
   }};
 }
+/* Der Grundverlust steigt mit jedem Level. Ohne das wird ein Run gegen Ende
+   entspannter, weil die eigene HP durch Items waechst, der Fehlerpreis aber nicht. */
+function fehlerpreis(){
+  const st=runStufe();
+  return Math.max(1,Math.round(st.hpVerlust*(1+(st.eskal||0)*Math.max(0,(G.level||1)-1))));
+}
 function verlust(anteile){
-  const basis=runStufe().hpVerlust;
+  const basis=fehlerpreis();
   let l=basis,mult=1;
   const jeSet={}, jeMult={};
   for(const it of G.items)for(const e of it.e){
@@ -759,6 +767,7 @@ function render(){
           <span><i style="background:var(--kapillar)"></i>Kapillarbett</span>
         </div>`
       +btn(`Inventar <span class="klein">· ${G.items.length} ${G.items.length===1?'Item':'Items'}</span>`,'inv')
+      +(G.verirrt&&!G.endlos?btn('Aufgeben und lernen <span class="klein">· zeigt den Weg, kostet die Hälfte deiner HP</span>','aufgeben'):'')
       +btn(G.gesichert?'Gespeichert <span class="klein">· Stand gesichert</span>':'Speichern und pausieren','sichern');
   }
   else if(S==='fight'){
@@ -770,6 +779,7 @@ function render(){
       serie?'●'.repeat(G.mon.max-G.mon.hp)+'○'.repeat(Math.max(0,G.mon.hp))
            :(sicht?`${Math.max(0,G.mon.hp)} / ${G.mon.max} HP`:'? HP')}</span></div>
       ${serie?`<p class="klein">Nur drei richtige Antworten in Folge bestehen das Kolloquium. Ein Fehler setzt die Serie zurück.</p>`:''}
+      <p class="klein">Ein Fehler kostet hier <span class="mono">${verlust()}</span> HP.</p>
       <div class="balken rot"><i style="width:${Math.max(0,mp)}%"></i></div>`,'m'+G.mon.id)
       +box(`<div class="zeile"><span class="klein">${esc(q.f)}</span>
         <span class="klein">${'●'.repeat(q.d||3)}${'○'.repeat(Math.max(0,5-(q.d||3)))}${
@@ -893,7 +903,9 @@ function render(){
           `<button data-act="setopt" data-arg="stufe:${k}" aria-pressed="${o.stufe===k?'true':'false'}">${v.n}</button>`).join('')}</div>
         <p class="klein">${esc(stufeVon(o.stufe).x)}</p>
         <div class="zeile klein"><span>Grundschaden</span><span class="mono">${stufeVon(o.stufe).schaden}</span></div>
-        <div class="zeile klein"><span>HP-Verlust pro Fehler</span><span class="mono">${stufeVon(o.stufe).hpVerlust}</span></div>
+        <div class="zeile klein"><span>HP-Verlust auf Level 1</span><span class="mono">${stufeVon(o.stufe).hpVerlust}</span></div>
+        <div class="zeile klein"><span>auf Level 10</span><span class="mono">${
+          Math.round(stufeVon(o.stufe).hpVerlust*(1+(stufeVon(o.stufe).eskal||0)*9))}</span></div>
         <div class="zeile klein"><span>Items zur Auswahl</span><span class="mono">${stufeVon(o.stufe).wahl}</span></div>
         <div class="zeile klein"><span>Krit-Bonus schwerer Fragen</span><span class="mono">×${stufeVon(o.stufe).krit.toFixed(1)}</span></div>
         <div class="zeile klein"><span>Coins</span><span class="mono">×${stufeVon(o.stufe).coins.toFixed(1)}</span></div>
@@ -915,6 +927,22 @@ function render(){
         kräftiger. Gedacht für E-Ink-Displays, hilft aber auch bei Bewegungsempfindlichkeit.</p>
         ${wahl('eink',[[false,'Aus'],[true,'An']])}`,'o3')}
       ${btn('Zurück','optzu')}`;
+  }
+  else if(S==='aufgeben'){
+    const w=G.lernweg||[];
+    h=kopf()+box(`<h2>Der Weg zum Ziel</h2>
+      <p class="klein">Von <span class="lat">${esc(nm(w[0]||G.node))}</span> nach
+      <span class="lat">${esc(nm(G.ziel))}</span> — ${Math.max(0,w.length-1)} Abzweigungen.</p>`,'lw')
+     +box(w.map((id,i)=>
+        `<div class="zeile ${tk(id)}" style="padding:3px 0">
+           <span class="lat">${esc(nm(id))}</span>
+           <span class="klein">${i===0?'hier':(i===w.length-1?'Ziel':TYPNAME[typ(id)]||'')}</span>
+         </div>`+(i<w.length-1?`<div class="klein" style="opacity:.55;padding-left:2px">↓</div>`:'')
+       ).join(''),'lwl','duenn')
+     +box(`<p class="klein">Der Umweg kostet die Hälfte deiner HP. Es gibt kein Item, und das Level bleibt.
+        Dafür beginnst du mit einer frischen Quest.</p>
+        <div class="zeile"><span>HP</span><span class="mono">${G.hpVorher} → ${G.hp}</span></div>`,'lwk','duenn')
+     +btn('Neue Quest beginnen','neuequest');
   }
   else if(S==='end'){
     const quote=G.beantwortet?Math.round(G.corrects/G.beantwortet*100):0;
@@ -1069,6 +1097,17 @@ function laufe(i){
     },t1+40);
   });
 }
+/* Kuerzester Weg vom aktuellen Gefaess zum Ziel, entlang der Distanzkarte. */
+function wegZumZiel(){
+  const weg=[G.node]; let k=G.node, schutz=0;
+  while(k!==G.ziel&&schutz++<60){
+    const aus=A[k]||[]; let best=null,bd=G.dist[k];
+    for(const e of aus){const d=G.dist[e.t]; if(d!=null&&d<bd){bd=d;best=e.t;}}
+    if(best==null)break;
+    weg.push(best); k=best;
+  }
+  return weg;
+}
 function instinktZiel(){
   const aus=A[G.node]||[]; let best=0,bd=Infinity;
   aus.forEach((e,i)=>{const d=G.dist[e.t]; if(d!=null&&d<bd){bd=d;best=i;}});
@@ -1174,6 +1213,16 @@ app.addEventListener('click',async ev=>{
     setzeOptionen(); await saveMeta();
   }
   else if(a==='setinfo'){G.setOffen = G.setOffen===arg ? null : arg;}
+  else if(a==='aufgeben'){
+    G.lernweg=wegZumZiel();
+    G.hpVorher=G.hp;
+    G.hp=Math.max(1,Math.floor(G.hp/2));    // mindestens 1 HP, Aufgeben soll nicht toeten
+    S='aufgeben';
+  }
+  else if(a==='neuequest'){
+    G.lernweg=null; G.msg='Neues Ziel. Diesmal ohne Umweg.'; G.zeige=null;
+    quest(); S='nav';
+  }
   else if(a==='inv'){G.zurueck=S;S='inv';}
   else if(a==='back'){S=G.zurueck||'nav';}
   else if(a==='wette'){G.wette=true;}
@@ -1228,8 +1277,8 @@ function gehe(i){
   G.node=e.t;G.branches++;G.zeige=null;
   if(G.char==='mediminister'){ G.instinkt=(G.instinkt||0)+1; G.instinktJetzt=(G.instinkt%2===1); }
   const vorspann = G.verschlafen ? G.verschlafen+' ' : ''; G.verschlafen=null;
-  if(alt!=null&&neu>alt)G.msg=vorspann+'Umweg — das Ziel liegt jetzt weiter entfernt.';
-  else if(alt!=null&&neu===alt)G.msg=vorspann+'Seitwärts — die Entfernung zum Ziel bleibt gleich.';
+  if(alt!=null&&neu>alt){G.msg=vorspann+'Umweg — das Ziel liegt jetzt weiter entfernt.';G.verirrt=true;}
+  else if(alt!=null&&neu===alt){G.msg=vorspann+'Seitwärts — die Entfernung zum Ziel bleibt gleich.';G.verirrt=true;}
   else if(vorspann)G.msg=vorspann.trim();
   if(G.node===G.ziel){ if(vorspann)G.msg=vorspann.trim(); levelGeschafft(); return; }
   if(G.branches>=G.nextFight){G.nextFight=G.branches+3+((Math.random()*4)|0);kampf();}
